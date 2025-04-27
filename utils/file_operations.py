@@ -1,4 +1,5 @@
 import os
+import shutil
 from send2trash import send2trash
 
 def move_file_to_trash(file_path):
