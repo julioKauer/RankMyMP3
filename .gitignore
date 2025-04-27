@@ -1,0 +1,49 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Caches
+*.cache
+*.log
+*.sqlite3
+*.db
+
+# Virtual environment
+venv/
+.env/
+.venv/
+env/
+ENV/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Editor / IDE specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Python-specific
+*.pyo
+*.pyd
+*.pyd
+*.pdb
+
+# Config files
+*.ini
+*.cfg
+*.json
+*.yaml
+*.yml
+
+# Ignore SQLite database backups
+*.db-journal
