@@ -1,8 +1,51 @@
 import os
+import networkx as nx
+from sqlite3 import Connection
+from models.music_model import MusicModel
+from models.comparison_model import ComparisonModel
+from models.comparison_state_model import ComparisonStateModel
 
 class MusicController:
-    def __init__(self, model):
-        self.model = model
+    def __init__(self, conn: Connection):
+        """
+        Inicializa o controlador de música.
+        :param conn: Conexão com o banco de dados.
+        """
+        self.conn = conn
+        # Inicializar os modelos
+        self.music_model = MusicModel(conn)
+        self.comparison_model = ComparisonModel(conn)
+        self.comparison_state_model = ComparisonStateModel(conn)
+
+        self.graph = nx.DiGraph()  # Grafo direcionado para representar as relações de preferência
+        self.load_comparisons_into_graph()
+
+    def load_comparisons_into_graph(self):
+        """
+        Carrega as comparações do banco de dados para o grafo.
+        """
+        self.graph.clear()  # Limpa o grafo atual
+        comparisons = self.comparison_model.get_comparisons()
+        for music_a_id, music_b_id, winner_id in comparisons:
+            if winner_id == music_a_id:
+                self.graph.add_edge(music_a_id, music_b_id)  # A > B
+            elif winner_id == music_b_id:
+                self.graph.add_edge(music_b_id, music_a_id)  # B > A
+
+    def update_ranking(self):
+        """Atualiza o ranking baseado na ordenação topológica do grafo."""
+        try:
+            # Ordenação topológica
+            ordered_music_ids = list(nx.topological_sort(self.graph))
+
+            # Atualiza as estrelas no banco de dados
+            total = len(ordered_music_ids)
+            for index, music_id in enumerate(ordered_music_ids):
+                # Calcula estrelas com base na posição (20% por faixa)
+                stars = 5 - (index * 5 // total)
+                self.music_model.update_stars(music_id, stars)
+        except nx.NetworkXUnfeasible:
+            raise ValueError("O grafo de comparações não é um DAG válido!")
 
     def add_music_folder(self, folder_path):
         for root, _, files in os.walk(folder_path):
@@ -16,18 +59,206 @@ class MusicController:
     def delete_music(self, music_id):
         self.model.delete_music(music_id)
 
+    def get_ranking(self, tag_filter=None, min_stars=None, max_stars=None):
+        """
+        Retorna o ranking das músicas baseado nas comparações registradas.
+        Permite filtrar por tags e por quantidade de estrelas.
+        """
+        # Obter músicas filtradas
+        musics = self.music_model.get_filtered_musics(tag_filter, min_stars, max_stars)
+
+        # Construir o grafo de comparações
+        graph = nx.DiGraph()
+        for music in musics:
+            graph.add_node(music['id'])
+
+        comparisons = self.comparison_model.get_comparisons()
+        for music_a_id, music_b_id, winner_id in comparisons:
+            if winner_id == music_a_id:
+                graph.add_edge(music_a_id, music_b_id)  # A > B
+            elif winner_id == music_b_id:
+                graph.add_edge(music_b_id, music_a_id)  # B > A
+
+        # Ordenar as músicas usando ordenação topológica
+        try:
+            sorted_music_ids = list(nx.topological_sort(graph))
+        except nx.NetworkXUnfeasible:
+            raise ValueError("O grafo contém ciclos, o que indica inconsistências nas comparações.")
+
+        # Mapear IDs para informações das músicas
+        music_map = {m['id']: m for m in musics}
+        ranked_musics = [music_map[music_id] for music_id in sorted_music_ids if music_id in music_map]
+
+        return ranked_musics
+
+    def add_music_folder(self, folder_path):
+        for root, _, files in os.walk(folder_path):
+            for file in files:
+                if file.endswith('.mp3'):
+                    self.music_model.add_music(os.path.join(root, file))
+
+    def classify_music(self, music_id, stars):
+        self.music_model.update_stars(music_id, stars)
+
+    def delete_music(self, music_id):
+        self.music_model.delete_music(music_id)
+
     def get_next_comparison(self):
-        musics = self.model.get_unrated_musics()
-        if len(musics) >= 2:
-            return musics[0], musics[1]
-        return None, None
+        """
+        Obtém a próxima comparação a ser realizada.
+        Retorna os IDs das músicas a serem comparadas e o índice do range atual.
+        :return: (unrated_music_id, compared_music_id, range_index) ou (None, None, None) se não houver músicas.
+        """
+        # Verificar se há um estado de comparação salvo
+        state = self.comparison_state_model.get_comparison_state()
+        if state:
+            unrated_music_id, compared_music_id, range_index = state
+        else:
+            # Iniciar uma nova comparação
+            unrated_music = self.music_model.get_next_unrated_music()
+            if not unrated_music:
+                return None, None, None  # Não há músicas não classificadas
 
-    def get_ranking(self, tag_filter=None):
-        return self.model.get_ranking(tag_filter)
+            unrated_music_id = unrated_music['id']
 
-    def add_tag_to_music(self, music_id, tag_name):
-        tag_id = self.model.add_tag(tag_name)
-        self.model.associate_music_tag(music_id, tag_id)
+            # Verificar se há músicas classificadas
+            ranked_musics = self.get_ranking()
+            if not ranked_musics:
+                # Atribuir uma classificação inicial à primeira música
+                self.music_model.update_stars(unrated_music_id, 3)  # Atribuir 3 estrelas como valor inicial
+                return None, None, None  # Recalcular o ranking antes de continuar
 
-    def get_music_by_tag(self, tag_name):
-        return self.model.get_music_by_tag(tag_name)
+            range_index = 1  # Começa pelo range de 1 estrela
+            compared_music_id = self.get_representative_music(range_index)
+
+            if not compared_music_id:
+                return None, None, None  # Não há músicas classificadas para comparação
+
+            # Salvar o estado inicial no banco de dados
+            self.comparison_state_model.save_comparison_state(unrated_music_id, compared_music_id, range_index)
+
+        return unrated_music_id, compared_music_id, range_index
+
+    def finalize_classification(self, unrated_music_id):
+        """
+        Finaliza a classificação de uma música não classificada.
+        Recalcula a ordenação topológica do grafo e atualiza as estrelas de todas as músicas classificadas.
+        :param unrated_music_id: ID da música não classificada.
+        """
+        # Atualizar o grafo com as comparações mais recentes
+        self.load_comparisons_into_graph()
+
+        # Recalcular a ordenação topológica
+        try:
+            ordered_music_ids = list(nx.topological_sort(self.graph))
+        except nx.NetworkXUnfeasible:
+            raise ValueError("O grafo contém ciclos, o que indica inconsistências nas comparações.")
+
+        # Atualizar as estrelas no banco de dados com base na nova ordenação
+        total = len(ordered_music_ids)
+        for index, music_id in enumerate(ordered_music_ids):
+            # Calcula estrelas com base na posição (20% por faixa)
+            stars = 5 - (index * 5 // total)
+            self.music_model.update_stars(music_id, stars)
+
+        # Limpar o estado da comparação para a música não classificada
+        self.comparison_state_model.clear_comparison_state(unrated_music_id)
+
+    def add_comparison(self, music_a_id, music_b_id, winner_id):
+        """
+        Salva uma comparação após verificar se ela não cria ciclos no grafo.
+        Ajusta a lógica para lidar com menos de 5 ranges.
+        :param music_a_id: ID da primeira música.
+        :param music_b_id: ID da segunda música.
+        :param winner_id: ID da música vencedora.
+        """
+        # Construir o grafo atual
+        graph = nx.DiGraph()
+        comparisons = self.comparison_model.get_comparisons()
+        for a_id, b_id, w_id in comparisons:
+            if w_id == a_id:
+                graph.add_edge(a_id, b_id)
+            elif w_id == b_id:
+                graph.add_edge(b_id, a_id)
+
+        # Adicionar a nova comparação ao grafo
+        loser_id = music_b_id if winner_id == music_a_id else music_a_id
+        graph.add_edge(winner_id, loser_id)
+
+        # Verificar se o grafo ainda é acíclico
+        if not nx.is_directed_acyclic_graph(graph):
+            raise ValueError("A comparação criaria um ciclo no grafo.")
+
+        # Salvar a comparação no banco de dados
+        self.comparison_model.save_comparison(music_a_id, music_b_id, winner_id)
+
+        # Atualizar o ranking
+        self.update_ranking()
+
+    def update_comparison_state(self, unrated_music_id, range_index):
+        """
+        Atualiza o estado de comparação para o próximo range.
+        :param unrated_music_id: ID da música não classificada.
+        :param range_index: Índice do próximo range.
+        """
+        # Obter a música representativa do próximo range
+        compared_music_id = self.get_representative_music(range_index)
+        if not compared_music_id:
+            raise ValueError("Não há músicas classificadas suficientes para continuar a comparação.")
+
+        # Atualizar o estado no banco de dados
+        self.comparison_state_model.save_comparison_state(unrated_music_id, compared_music_id, range_index)
+
+    def is_last_range(self, range_index):
+        """
+        Verifica se o range atual é o último.
+        O número de ranges depende do número de músicas classificadas.
+        :param range_index: Índice do range atual.
+        :return: True se for o último range, False caso contrário.
+        """
+        ranked_musics = self.get_ranking()
+        num_ranges = min(4, len(ranked_musics) - 1)  # Determina o número de ranges disponíveis
+        return range_index >= num_ranges
+
+    def get_representative_music(self, range_index):
+        """
+        Retorna uma música representativa de um range de classificação.
+        :param range_index: Índice do range (1 a 5).
+        :return: O ID da música representativa ou None se não houver músicas no range.
+        """
+        ranked_musics = self.get_ranking()
+        total = len(ranked_musics)
+        if total == 0:
+            return None  # Nenhuma música classificada
+
+        # Determinar o número de ranges disponíveis
+        num_ranges = min(5, total)
+
+        # Calcula o intervalo do range
+        start = (range_index - 1) * total // num_ranges
+        end = range_index * total // num_ranges
+
+        # Retorna a música de maior classificação no range
+        if start < total:
+            return ranked_musics[start]['id']  # Retorna o ID da música de maior classificação no range
+        return None
+
+    def update_stars_based_on_ranking(self):
+        """
+        Atualiza as estrelas das músicas com base no ranking calculado.
+        """
+        ranking = self.get_ranking()
+        total = len(ranking)
+
+        for index, music in enumerate(ranking):
+            # Calcula estrelas com base na posição no ranking
+            stars = 5 - (index * 5 // total)
+            self.music_model.update_stars(music['id'], stars)
+
+    def get_music_details(self, music_id):
+        """
+        Obtém os detalhes de uma música específica.
+        :param music_id: ID da música.
+        :return: Um dicionário com os detalhes da música (id, path, stars) ou None se não encontrada.
+        """
+        return self.music_model.get_music_details(music_id)

@@ -1,12 +1,21 @@
+import sqlite3
 import wx
 from controllers.music_controller import MusicController
-from models.music_model import MusicModel  # Importa o modelo correto
 from views.music_app import MusicApp
+from utils.database_initializer import DatabaseInitializer  # Importa o inicializador do banco de dados
 
 if __name__ == '__main__':
     app = wx.App()
-    music_model = MusicModel()  # Inicializa o modelo
-    music_controller = MusicController(model=music_model)  # Passa o modelo para o controlador
-    main_frame = MusicApp(music_controller)
+    conn = sqlite3.connect("data/music_ranking.db")
+
+    # Inicializar o banco de dados
+    db_initializer = DatabaseInitializer(conn)
+    db_initializer.create_tables()
+
+    # Criar o controlador
+    controller = MusicController(conn)
+
+    # Iniciar a aplicação (exemplo)
+    main_frame = MusicApp(controller)
     main_frame.Show()
     app.MainLoop()
