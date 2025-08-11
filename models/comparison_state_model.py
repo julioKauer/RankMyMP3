@@ -17,7 +17,10 @@ class ComparisonStateModel:
         cursor.execute('SELECT unrated_music_id, compared_music_id, range_index FROM comparison_state LIMIT 1')
         return cursor.fetchone()
 
-    def clear_comparison_state(self, unrated_music_id):
+    def clear_comparison_state(self, unrated_music_id=None):
         cursor = self.conn.cursor()
-        cursor.execute('DELETE FROM comparison_state WHERE unrated_music_id = ?', (unrated_music_id,))
+        if unrated_music_id is not None:
+            cursor.execute('DELETE FROM comparison_state WHERE unrated_music_id = ?', (unrated_music_id,))
+        else:
+            cursor.execute('DELETE FROM comparison_state')
         self.conn.commit()

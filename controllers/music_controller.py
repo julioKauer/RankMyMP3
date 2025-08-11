@@ -47,6 +47,22 @@ class MusicController:
         except nx.NetworkXUnfeasible:
             raise ValueError("O grafo de comparações não é um DAG válido!")
 
+    def get_representative_music(self, range_index, exclude_id=None):
+        """
+        Obtém uma música representativa para um determinado range.
+        :param range_index: Índice do range (1 a 5)
+        :param exclude_id: ID da música a ser excluída da seleção
+        :return: ID da música representativa ou None se não houver música disponível
+        """
+        # Obtém músicas com o número de estrelas correspondente ao range
+        musics = self.music_model.get_music_by_stars(range_index, exclude_id)
+        if not musics:
+            return None
+        
+        # Por enquanto, retorna a primeira música do range
+        # Pode ser melhorado para escolher uma música mais representativa
+        return musics[0]['id']
+
     def add_music_folder(self, folder_path):
         for root, _, files in os.walk(folder_path):
             for file in files:
@@ -59,12 +75,13 @@ class MusicController:
     def delete_music(self, music_id):
         self.model.delete_music(music_id)
 
-    def get_ranking(self, tag_filter=None, min_stars=None, max_stars=None):
+    def get_ranking(self, tag_filter=None, min_stars=0, max_stars=None):
         """
         Retorna o ranking das músicas baseado nas comparações registradas.
         Permite filtrar por tags e por quantidade de estrelas.
+        Músicas puladas (stars = -1) são automaticamente excluídas.
         """
-        # Obter músicas filtradas
+        # Obter músicas filtradas, excluindo músicas puladas
         musics = self.music_model.get_filtered_musics(tag_filter, min_stars, max_stars)
 
         # Construir o grafo de comparações
@@ -129,7 +146,7 @@ class MusicController:
                 return None, None, None  # Recalcular o ranking antes de continuar
 
             range_index = 1  # Começa pelo range de 1 estrela
-            compared_music_id = self.get_representative_music(range_index)
+            compared_music_id = self.get_representative_music(range_index, exclude_id=unrated_music_id)
 
             if not compared_music_id:
                 return None, None, None  # Não há músicas classificadas para comparação
@@ -201,13 +218,27 @@ class MusicController:
         :param unrated_music_id: ID da música não classificada.
         :param range_index: Índice do próximo range.
         """
-        # Obter a música representativa do próximo range
-        compared_music_id = self.get_representative_music(range_index)
+        # Tenta obter uma música representativa do range atual
+        compared_music_id = self.get_representative_music(range_index, exclude_id=unrated_music_id)
+        
         if not compared_music_id:
-            raise ValueError("Não há músicas classificadas suficientes para continuar a comparação.")
+            # Se não encontrou no range atual, tenta o próximo range
+            if not self.is_last_range(range_index):
+                compared_music_id = self.get_representative_music(range_index + 1, exclude_id=unrated_music_id)
+                if compared_music_id:
+                    range_index += 1
+            
+            if not compared_music_id:
+                raise ValueError("Não há músicas classificadas suficientes para continuar a comparação.")
 
         # Atualizar o estado no banco de dados
         self.comparison_state_model.save_comparison_state(unrated_music_id, compared_music_id, range_index)
+
+    def clear_comparison_state(self):
+        """
+        Limpa o estado atual da comparação.
+        """
+        self.comparison_state_model.clear_comparison_state()
 
     def is_last_range(self, range_index):
         """
@@ -220,10 +251,11 @@ class MusicController:
         num_ranges = min(4, len(ranked_musics) - 1)  # Determina o número de ranges disponíveis
         return range_index >= num_ranges
 
-    def get_representative_music(self, range_index):
+    def get_representative_music(self, range_index, exclude_id=None):
         """
         Retorna uma música representativa de um range de classificação.
         :param range_index: Índice do range (1 a 5).
+        :param exclude_id: ID da música a ser excluída da seleção
         :return: O ID da música representativa ou None se não houver músicas no range.
         """
         ranked_musics = self.get_ranking()
@@ -238,9 +270,22 @@ class MusicController:
         start = (range_index - 1) * total // num_ranges
         end = range_index * total // num_ranges
 
-        # Retorna a música de maior classificação no range
+        # Cria uma lista de músicas válidas no range atual
+        valid_musics = []
         if start < total:
-            return ranked_musics[start]['id']  # Retorna o ID da música de maior classificação no range
+            for i in range(start, min(end, total)):
+                music = ranked_musics[i]
+                # Verifica se a música é válida para comparação
+                if (music['id'] != exclude_id and  # Não é a música sendo excluída
+                    music['stars'] >= 0 and        # Não foi pulada
+                    music['id'] not in [s[1] for s in self.comparison_model.get_comparisons() if s[0] == exclude_id]):  # Não foi comparada antes
+                    valid_musics.append(music)
+
+        # Se encontrou músicas válidas, retorna uma delas
+        if valid_musics:
+            # Por enquanto, retorna a primeira música válida encontrada
+            return valid_musics[0]['id']
+            
         return None
 
     def update_stars_based_on_ranking(self):
@@ -262,3 +307,15 @@ class MusicController:
         :return: Um dicionário com os detalhes da música (id, path, stars) ou None se não encontrada.
         """
         return self.music_model.get_music_details(music_id)
+
+    def get_total_musics_count(self):
+        return self.music_model.get_total_count()
+
+    def get_rated_musics_count(self):
+        return self.music_model.get_rated_count()
+
+    def get_unrated_musics(self):
+        return self.music_model.get_unrated_musics()
+
+    def get_current_comparison_state(self):
+        return self.comparison_state_model.get_comparison_state()

@@ -11,10 +11,13 @@ class MusicModel:
         cursor.execute('INSERT OR IGNORE INTO music (path) VALUES (?)', (path,))
         self.conn.commit()
 
-    # Atualmente sem uso
     def get_unrated_musics(self):
+        """
+        Retorna músicas que ainda não foram classificadas.
+        Músicas com stars = -1 são consideradas puladas e não são retornadas.
+        """
         cursor = self.conn.cursor()
-        cursor.execute('SELECT id, path FROM music WHERE stars = 0')
+        cursor.execute('SELECT id, path FROM music WHERE stars = 0')  # Apenas músicas não classificadas
         return cursor.fetchall()
 
     def update_stars(self, music_id, stars):
@@ -57,7 +60,7 @@ class MusicModel:
             '''
             params.append(tag_filter)
         else:
-            query += 'WHERE 1=1'  # Placeholder para adicionar condições adicionais
+            query += 'WHERE stars > -1'  # Exclui músicas puladas (-1)
 
         # Adicionar filtro por estrelas, se necessário
         if min_stars is not None:
@@ -97,6 +100,21 @@ class MusicModel:
         ''', (tag_name,))
         return cursor.fetchall()
 
+    def get_music_by_stars(self, stars, exclude_id=None):
+        """
+        Retorna músicas com um determinado número de estrelas.
+        :param stars: Número de estrelas para filtrar
+        :param exclude_id: ID da música a ser excluída dos resultados
+        :return: Lista de músicas
+        """
+        cursor = self.conn.cursor()
+        if exclude_id is not None:
+            cursor.execute('SELECT id, path, stars FROM music WHERE stars = ? AND id != ?', (stars, exclude_id))
+        else:
+            cursor.execute('SELECT id, path, stars FROM music WHERE stars = ?', (stars,))
+        results = cursor.fetchall()
+        return [{'id': row[0], 'path': row[1], 'stars': row[2]} for row in results]
+
     def get_music_details(self, music_id):
         """
         Retorna os detalhes de uma música com base no ID.
@@ -121,3 +139,13 @@ class MusicModel:
         if result:
             return {'id': result[0], 'path': result[1]}
         return None
+
+    def get_total_count(self):
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT COUNT(*) FROM music')
+        return cursor.fetchone()[0]
+
+    def get_rated_count(self):
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT COUNT(*) FROM music WHERE stars > 0')
+        return cursor.fetchone()[0]
