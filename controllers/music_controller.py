@@ -98,6 +98,67 @@ class MusicController:
     def classify_music(self, music_id, stars):
         """Classifica uma música diretamente com um número de estrelas."""
         self.music_model.update_stars(music_id, stars)
+        # Após classificar, redistribuir todas as músicas para manter 20% em cada nível
+        self._redistribute_all_stars()
+
+    def _redistribute_all_stars(self):
+        """
+        Redistribui as estrelas de todas as músicas classificadas para manter
+        20% das músicas em cada nível (1⭐ a 5⭐).
+        """
+        # Obter todas as comparações
+        comparisons = self.comparison_model.get_comparisons()
+        
+        # Calcular pontuações para cada música baseado nas comparações
+        scores = {}
+        music_ids = set()
+        
+        for music_a_id, music_b_id, winner_id in comparisons:
+            music_ids.add(music_a_id)
+            music_ids.add(music_b_id)
+            
+            # Inicializar pontuações se não existirem
+            if music_a_id not in scores:
+                scores[music_a_id] = 0
+            if music_b_id not in scores:
+                scores[music_b_id] = 0
+            
+            # Dar pontos ao vencedor
+            if winner_id == music_a_id:
+                scores[music_a_id] += 1
+            elif winner_id == music_b_id:
+                scores[music_b_id] += 1
+
+        # Ordenar por pontuação (ranking baseado em vitórias)
+        sorted_musics = sorted(music_ids, key=lambda x: scores.get(x, 0), reverse=True)
+        
+        # Distribuir estrelas mantendo 20% em cada nível
+        total_musics = len(sorted_musics)
+        if total_musics == 0:
+            return
+
+        # Calcular quantas músicas em cada nível (20% cada)
+        musics_per_level = total_musics // 5  # 20% = 1/5
+        remainder = total_musics % 5
+        
+        print(f"DEBUG: Redistributing {total_musics} musics with {musics_per_level} per level (remainder: {remainder})")
+        
+        # Distribuir o resto começando pelos níveis mais altos
+        level_counts = [musics_per_level] * 5
+        for i in range(remainder):
+            level_counts[i] += 1
+        
+        print(f"DEBUG: Level distribution: 5⭐={level_counts[0]}, 4⭐={level_counts[1]}, 3⭐={level_counts[2]}, 2⭐={level_counts[3]}, 1⭐={level_counts[4]}")
+        
+        current_position = 0
+        for level in range(5, 0, -1):  # 5⭐ para 1⭐
+            count = level_counts[5 - level]
+            for j in range(count):
+                if current_position < len(sorted_musics):
+                    music_id = sorted_musics[current_position]
+                    self.music_model.update_stars(music_id, level)
+                    print(f"DEBUG: Music {music_id} positioned {current_position+1}/{total_musics} -> {level} stars")
+                    current_position += 1
 
     def delete_music(self, music_id):
         """Remove uma música do banco."""
