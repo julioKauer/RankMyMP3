@@ -44,6 +44,31 @@ class MusicModel:
         if result:
             return {'id': result[0], 'path': result[1], 'stars': result[2]}
         return None
+        """
+        Retorna a última música classificada com o nível de estrelas especificado.
+        """
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT id, path, stars FROM music WHERE stars = ? ORDER BY id DESC LIMIT 1', (star_level,))
+        result = cursor.fetchone()
+        if result:
+            return {'id': result[0], 'path': result[1], 'stars': result[2]}
+        return None
+
+    def get_music_details(self, music_id):elf.conn = conn
+
+    def add_music(self, path):
+        cursor = self.conn.cursor()
+        cursor.execute('INSERT OR IGNORE INTO music (path) VALUES (?)', (path,))
+        self.conn.commit()
+
+    def get_unrated_musics(self):
+        """
+        Retorna músicas que ainda não foram classificadas.
+        Músicas com stars = -1 são consideradas puladas e não são retornadas.
+        """
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT id, path FROM music WHERE stars = 0')  # Apenas músicas não classificadas
+        return cursor.fetchall()
 
     def update_stars(self, music_id, stars):
         """
@@ -126,8 +151,14 @@ class MusicModel:
         return cursor.fetchall()
 
     def get_music_by_stars(self, stars, exclude_id=None):
+        """
+        Retorna músicas com um determinado número de estrelas.
+        :param stars: Número de estrelas para filtrar
+        :param exclude_id: ID da música a ser excluída dos resultados
+        :return: Lista de músicas
+        """
         cursor = self.conn.cursor()
-        if exclude_id:
+        if exclude_id is not None:
             cursor.execute('SELECT id, path, stars FROM music WHERE stars = ? AND id != ?', (stars, exclude_id))
         else:
             cursor.execute('SELECT id, path, stars FROM music WHERE stars = ?', (stars,))
@@ -160,6 +191,20 @@ class MusicModel:
         result = cursor.fetchone()
         if result:
             return {'id': result[0], 'path': result[1], 'stars': result[2]}
+        return None
+
+    def get_two_unrated_musics(self):
+        """
+        Retorna duas músicas não classificadas diferentes para comparação inicial.
+        """
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT id, path, stars FROM music WHERE stars = 0 LIMIT 2')
+        results = cursor.fetchall()
+        if len(results) >= 2:
+            return [
+                {'id': results[0][0], 'path': results[0][1], 'stars': results[0][2]},
+                {'id': results[1][0], 'path': results[1][1], 'stars': results[1][2]}
+            ]
         return None
 
     def get_total_count(self):

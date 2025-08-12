@@ -6,8 +6,11 @@ class ComparisonStateModel:
 
     def save_comparison_state(self, unrated_music_id, compared_music_id, range_index):
         cursor = self.conn.cursor()
+        # Primeiro limpa qualquer estado anterior
+        cursor.execute('DELETE FROM comparison_state')
+        # Depois insere o novo estado
         cursor.execute('''
-            INSERT OR REPLACE INTO comparison_state (unrated_music_id, compared_music_id, range_index)
+            INSERT INTO comparison_state (unrated_music_id, compared_music_id, range_index)
             VALUES (?, ?, ?)
         ''', (unrated_music_id, compared_music_id, range_index))
         self.conn.commit()
@@ -15,7 +18,8 @@ class ComparisonStateModel:
     def get_comparison_state(self):
         cursor = self.conn.cursor()
         cursor.execute('SELECT unrated_music_id, compared_music_id, range_index FROM comparison_state LIMIT 1')
-        return cursor.fetchone()
+        result = cursor.fetchone()
+        return result
 
     def clear_comparison_state(self, unrated_music_id=None):
         cursor = self.conn.cursor()

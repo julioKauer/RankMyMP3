@@ -47,6 +47,20 @@ class MusicController:
         except nx.NetworkXUnfeasible:
             raise ValueError("O grafo de comparações não é um DAG válido!")
 
+    def is_music_rated(self, music_id):
+        """
+        Verifica se uma música já foi classificada.
+        :param music_id: ID da música a verificar
+        :return: True se a música já foi classificada, False caso contrário
+        """
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT stars FROM music WHERE id = ?', (music_id,))
+        result = cursor.fetchone()
+        if result is None:
+            return False
+        stars = result[0]
+        return stars is not None and stars > 0  # Não classificada = 0, Pulada = -1, Classificada > 0
+
     def get_representative_music(self, range_index, exclude_id=None):
         """
         Obtém uma música representativa para um determinado range.
@@ -67,22 +81,22 @@ class MusicController:
         for root, _, files in os.walk(folder_path):
             for file in files:
                 if file.endswith('.mp3'):
-                    self.model.add_music(os.path.join(root, file))
+                    self.music_model.add_music(os.path.join(root, file))
 
     def classify_music(self, music_id, stars):
-        self.model.update_stars(music_id, stars)
+        self.music_model.update_stars(music_id, stars)
 
     def delete_music(self, music_id):
-        self.model.delete_music(music_id)
+        self.music_model.delete_music(music_id)
 
-    def get_ranking(self, tag_filter=None, min_stars=0, max_stars=None):
+    def get_ranking(self, tag_filter=None, max_stars=None):
         """
         Retorna o ranking das músicas baseado nas comparações registradas.
         Permite filtrar por tags e por quantidade de estrelas.
-        Músicas puladas (stars = -1) são automaticamente excluídas.
+        Retorna apenas músicas efetivamente classificadas (stars > 0).
         """
-        # Obter músicas filtradas, excluindo músicas puladas
-        musics = self.music_model.get_filtered_musics(tag_filter, min_stars, max_stars)
+        # Obter músicas filtradas, apenas classificadas (stars > 0)
+        musics = self.music_model.get_filtered_musics(tag_filter, min_stars=1, max_stars=max_stars)
 
         # Construir o grafo de comparações
         graph = nx.DiGraph()
@@ -122,39 +136,100 @@ class MusicController:
 
     def get_next_comparison(self):
         """
-        Obtém a próxima comparação a ser realizada.
-        Retorna os IDs das músicas a serem comparadas e o índice do range atual.
-        :return: (unrated_music_id, compared_music_id, range_index) ou (None, None, None) se não houver músicas.
+        Obtém a próxima comparação a ser realizada usando estratégia descendente.
+        Retorna os IDs das músicas a serem comparadas e o nível de estrelas atual (5 para 1).
+        :return: (unrated_music_id, compared_music_id, star_level) ou None se não houver músicas.
         """
         # Verificar se há um estado de comparação salvo
         state = self.comparison_state_model.get_comparison_state()
         if state:
-            unrated_music_id, compared_music_id, range_index = state
+            unrated_music_id, compared_music_id, star_level = state
+            # Buscar música representativa para o nível atual
+            representative_music = self.music_model.get_last_music_with_stars(star_level)
+            if representative_music:
+                return unrated_music_id, representative_music['id'], star_level
+            else:
+                # Se não há música representativa neste nível, desce um nível
+                if star_level > 1:
+                    self.comparison_state_model.save_comparison_state(unrated_music_id, None, star_level - 1)
+                    return self.get_next_comparison()
+                else:
+                    # Se chegou ao nível 1 sem representativo, classifica como 1 estrela
+                    self.classify_music(unrated_music_id, 1)
+                    self.comparison_state_model.clear_comparison_state()
+                    # Buscar a próxima música após classificar esta
+                    return self._get_new_comparison()
         else:
             # Iniciar uma nova comparação
-            unrated_music = self.music_model.get_next_unrated_music()
-            if not unrated_music:
-                return None, None, None  # Não há músicas não classificadas
+            return self._get_new_comparison()
 
-            unrated_music_id = unrated_music['id']
-
+    def _get_new_comparison(self):
+        """Método auxiliar para buscar uma nova comparação."""
+        try:
             # Verificar se há músicas classificadas
             ranked_musics = self.get_ranking()
-            if not ranked_musics:
-                # Atribuir uma classificação inicial à primeira música
-                self.music_model.update_stars(unrated_music_id, 3)  # Atribuir 3 estrelas como valor inicial
-                return None, None, None  # Recalcular o ranking antes de continuar
+        except:
+            # Se der erro no ranking, assumir que não há músicas classificadas
+            ranked_musics = []
+            
+        if not ranked_musics:
+            # Se não há músicas classificadas, buscar duas músicas não classificadas
+            two_unrated = self.music_model.get_two_unrated_musics()
+            if not two_unrated or len(two_unrated) < 2:
+                return None  # Não há músicas suficientes para comparar
+            
+            # Para a primeira comparação, usar nível 3 (neutro)
+            unrated_music_id = two_unrated[0]['id']
+            compared_music_id = two_unrated[1]['id']
+            self.comparison_state_model.save_comparison_state(unrated_music_id, compared_music_id, 3)
+            return unrated_music_id, compared_music_id, 3
 
-            range_index = 1  # Começa pelo range de 1 estrela
-            compared_music_id = self.get_representative_music(range_index, exclude_id=unrated_music_id)
+        # Se há músicas classificadas, buscar uma música não classificada
+        unrated_music = self.music_model.get_next_unrated_music()
+        if not unrated_music:
+            return None  # Não há músicas não classificadas
 
-            if not compared_music_id:
-                return None, None, None  # Não há músicas classificadas para comparação
+        unrated_music_id = unrated_music['id']
+        # Começar sempre do nível 5 estrelas (estratégia descendente)
+        star_level = 5
+        representative_music = self.music_model.get_last_music_with_stars(star_level)
+        
+        if representative_music:
+            self.comparison_state_model.save_comparison_state(unrated_music_id, representative_music['id'], star_level)
+            return unrated_music_id, representative_music['id'], star_level
+        else:
+            # Se não há música de 5 estrelas, desce para 4, etc.
+            for level in range(4, 0, -1):
+                representative_music = self.music_model.get_last_music_with_stars(level)
+                if representative_music:
+                    self.comparison_state_model.save_comparison_state(unrated_music_id, representative_music['id'], level)
+                    return unrated_music_id, representative_music['id'], level
+            
+            # Se não há músicas classificadas em nenhum nível, classificar como 1 estrela
+            self.classify_music(unrated_music_id, 1)
+            return None
 
-            # Salvar o estado inicial no banco de dados
-            self.comparison_state_model.save_comparison_state(unrated_music_id, compared_music_id, range_index)
+    def get_last_music_with_stars(self, star_level):
+        """Retorna a última música classificada com o nível de estrelas especificado."""
+        return self.music_model.get_last_music_with_stars(star_level)
 
-        return unrated_music_id, compared_music_id, range_index
+    def try_next_star_level(self, unrated_music_id, star_level):
+        """Tenta o próximo nível de estrelas ou finaliza se chegou ao fim."""
+        if star_level < 1:
+            # Se chegou abaixo de 1 estrela, classifica como 1 estrela
+            self.classify_music(unrated_music_id, 1)
+            self.comparison_state_model.clear_comparison_state()
+            return None
+        else:
+            # Continua com o próximo nível
+            representative_music = self.music_model.get_last_music_with_stars(star_level)
+            
+            if representative_music:
+                self.comparison_state_model.save_comparison_state(unrated_music_id, representative_music['id'], star_level)
+                return unrated_music_id, representative_music['id'], star_level
+            else:
+                # Se não há música representativa neste nível, desce mais um
+                return self.try_next_star_level(unrated_music_id, star_level - 1)
 
     def finalize_classification(self, unrated_music_id):
         """
