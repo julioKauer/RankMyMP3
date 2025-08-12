@@ -7,7 +7,7 @@ class ComparisonModel:
     def save_comparison(self, music_a_id, music_b_id, winner_id):
         cursor = self.conn.cursor()
         cursor.execute('''
-            INSERT INTO comparisons (music_a_id, music_b_id, winner_id)
+            INSERT OR REPLACE INTO comparisons (music_a_id, music_b_id, winner_id)
             VALUES (?, ?, ?)
         ''', (music_a_id, music_b_id, winner_id))
         self.conn.commit()

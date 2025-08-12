@@ -419,18 +419,23 @@ class MusicApp(wx.Frame):
         winner_id = music_a_id if choice == 0 else music_b_id
         
         # Registrar a comparação no sistema
-        self.controller.make_comparison(music_a_id, music_b_id, winner_id)
+        classification_finished = self.controller.make_comparison(music_a_id, music_b_id, winner_id)
         
-        # Finalizar esta comparação
-        self._finalize_comparison()
+        # Finalizar esta comparação (só limpa estado se foi finalizada)
+        self._finalize_comparison(classification_finished)
 
-    def _finalize_comparison(self):
+    def _finalize_comparison(self, classification_finished=True):
         """Finaliza o processo de comparação."""
         self.comparison_panel.Hide()
         self.update_lists()
         self.update_status()
-        self.controller.clear_comparison_state()
+        
+        # Só limpa o estado se a classificação foi finalizada
+        if classification_finished:
+            self.controller.clear_comparison_state()
+        
         self.panel.Layout()
+        
         # Verificar se há mais músicas para classificar
         try:
             next_state = self.controller.get_next_comparison()

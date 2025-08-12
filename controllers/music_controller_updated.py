@@ -29,14 +29,13 @@ class MusicController:
         :param music_a_id: ID da primeira música
         :param music_b_id: ID da segunda música  
         :param winner_id: ID da música vencedora
-        :return: True se a classificação foi finalizada, False se continua
         """
         # Obter o contexto da comparação
         state = self.comparison_state_model.get_comparison_state()
         context = state[2] if state else 'unknown'
         
         # Usar a nova lógica de processamento
-        return self.process_comparison_result(music_a_id, music_b_id, winner_id, context)
+        self.process_comparison_result(music_a_id, music_b_id, winner_id, context)
 
     def _update_ranking_from_comparisons(self):
         """
@@ -238,7 +237,6 @@ class MusicController:
         :param music_b_id: ID da segunda música  
         :param winner_id: ID da música vencedora
         :param context: Contexto da comparação (nível de estrelas ou 'initial')
-        :return: True se a classificação foi finalizada, False se continua
         """
         # Salvar a comparação
         self.comparison_model.save_comparison(music_a_id, music_b_id, winner_id)
@@ -250,7 +248,6 @@ class MusicController:
             self.classify_music(winner_id, 3)
             self.classify_music(loser_id, 2)
             print(f"DEBUG: Initial comparison - winner {winner_id} gets 3 stars, loser {loser_id} gets 2 stars")
-            return True  # Classificação finalizada
         elif isinstance(context, int):
             # Comparação com estratégia descendente
             star_level = context
@@ -275,7 +272,6 @@ class MusicController:
                 # Classifica com o nível atual de estrelas
                 self.classify_music(unrated_music_id, star_level)
                 print(f"DEBUG: Unrated music {unrated_music_id} won against {star_level}-star music, classified as {star_level} stars")
-                return True  # Classificação finalizada
             else:
                 # A música não classificada perdeu - ela é pior que o nível atual
                 # Continua descendo de nível
@@ -286,19 +282,16 @@ class MusicController:
                     if representative_music:
                         self.comparison_state_model.save_comparison_state(unrated_music_id, representative_music['id'], next_level)
                         print(f"DEBUG: Unrated music {unrated_music_id} lost against {star_level}-star music, trying level {next_level}")
-                        return False  # Continua classificação
                     else:
                         # Não há música representativa no próximo nível, desce mais
-                        return self._continue_classification(unrated_music_id, next_level - 1)
+                        self._continue_classification(unrated_music_id, next_level - 1)
                 else:
                     # Chegou ao nível mínimo, classifica como 1 estrela
                     self.classify_music(unrated_music_id, 1)
                     print(f"DEBUG: Unrated music {unrated_music_id} reached minimum level, classified as 1 star")
-                    return True  # Classificação finalizada
         else:
             # Comparação de refinamento - usa a lógica antiga
             self._update_ranking_from_comparisons()
-            return True  # Finalizada
 
     def _continue_classification(self, unrated_music_id, star_level):
         """Continua a classificação descendo pelos níveis de estrelas."""
@@ -306,14 +299,13 @@ class MusicController:
             # Se chegou abaixo de 1 estrela, classifica como 1 estrela
             self.classify_music(unrated_music_id, 1)
             print(f"DEBUG: Music {unrated_music_id} classified as 1 star (bottom level)")
-            return True  # Classificação finalizada
+            return
         
         # Procura uma música representativa neste nível
         representative_music = self.music_model.get_last_music_with_stars(star_level)
         if representative_music:
             self.comparison_state_model.save_comparison_state(unrated_music_id, representative_music['id'], star_level)
             print(f"DEBUG: Continuing classification for music {unrated_music_id} at level {star_level}")
-            return False  # Continua classificação
         else:
             # Se não há música representativa neste nível, desce mais um
-            return self._continue_classification(unrated_music_id, star_level - 1)
+            self._continue_classification(unrated_music_id, star_level - 1)

@@ -17,9 +17,8 @@ class MusicModel:
         Músicas com stars = -1 são consideradas puladas e não são retornadas.
         """
         cursor = self.conn.cursor()
-        cursor.execute('SELECT id, path, stars FROM music WHERE stars = 0')  # Apenas músicas não classificadas
-        results = cursor.fetchall()
-        return [{'id': row[0], 'path': row[1], 'stars': row[2]} for row in results]
+        cursor.execute('SELECT id, path FROM music WHERE stars = 0')  # Apenas músicas não classificadas
+        return cursor.fetchall()
 
     def get_two_unrated_musics(self):
         """
@@ -95,9 +94,6 @@ class MusicModel:
         if max_stars is not None:
             query += ' AND m.stars <= ?'
             params.append(max_stars)
-
-        # Ordenar por estrelas em ordem decrescente
-        query += ' ORDER BY m.stars DESC'
 
         # Executar a consulta
         cursor.execute(query, params)
@@ -175,26 +171,3 @@ class MusicModel:
         cursor = self.conn.cursor()
         cursor.execute('SELECT COUNT(*) FROM music WHERE stars > 0')
         return cursor.fetchone()[0]
-
-    def get_all_classified_musics(self):
-        """
-        Retorna todas as músicas classificadas (stars > 0) ordenadas por estrelas descendente e depois por ID.
-        Isso garante que músicas de mesmo nível mantenham ordem de classificação.
-        """
-        cursor = self.conn.cursor()
-        cursor.execute('SELECT id, path, stars FROM music WHERE stars > 0 ORDER BY stars DESC, id ASC')
-        results = cursor.fetchall()
-        return [{'id': row[0], 'path': row[1], 'stars': row[2]} for row in results]
-
-    def get_all_classified_musics_by_quality(self):
-        """
-        Retorna todas as músicas classificadas ordenadas por qualidade real.
-        Usa o ID como proxy para ordem de classificação (músicas classificadas mais recentemente 
-        com o mesmo nível de estrelas são consideradas mais refinadas na comparação).
-        """
-        cursor = self.conn.cursor()
-        # Ordena por estrelas descendente e depois por ID descendente 
-        # (músicas mais recentes com mesmo nível ficam primeiro)
-        cursor.execute('SELECT id, path, stars FROM music WHERE stars > 0 ORDER BY stars DESC, id DESC')
-        results = cursor.fetchall()
-        return [{'id': row[0], 'path': row[1], 'stars': row[2]} for row in results]
