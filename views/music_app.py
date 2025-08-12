@@ -273,7 +273,7 @@ class MusicApp(wx.Frame):
         unrated_musics = self.controller.get_unrated_musics()
         for music in unrated_musics:
             index = self.unrated_list.GetItemCount()
-            self.unrated_list.InsertItem(index, os.path.basename(music[1]))
+            self.unrated_list.InsertItem(index, os.path.basename(music['path']))
 
         # Atualizar ranking (apenas músicas classificadas com stars > 0)
         self.ranking_list.DeleteAllItems()
@@ -295,10 +295,30 @@ class MusicApp(wx.Frame):
         self.statusbar.SetStatusText(f"Músicas classificadas: {rated_musics}", 1)
 
     def start_comparison(self):
-        """Inicia uma nova comparação usando estratégia descendente."""
+        """Inicia uma nova comparação."""
+        print("DEBUG: start_comparison method called")
         try:
-            state = self.controller.get_next_comparison()
+            print("DEBUG: About to call get_next_comparison")
+            print(f"DEBUG: Controller exists: {self.controller is not None}")
+            if not hasattr(self.controller, 'get_next_comparison'):
+                print("DEBUG: Controller missing get_next_comparison method")
+                return
+            
+            try:
+                state = self.controller.get_next_comparison()
+                print(f"DEBUG: get_next_comparison returned: {state}")
+            except Exception as e:
+                print(f"DEBUG: Exception in get_next_comparison: {e}")
+                import traceback
+                traceback.print_exc()
+                wx.MessageBox(
+                    f'Erro interno: {str(e)}',
+                    'Erro',
+                    wx.OK | wx.ICON_ERROR
+                )
+                return
             if not state or len(state) != 3:
+                print("DEBUG: No valid state returned, showing message")
                 self.comparison_panel.Hide()
                 self.panel.Layout()
                 wx.MessageBox(
@@ -308,11 +328,15 @@ class MusicApp(wx.Frame):
                 )
                 return
 
-            unrated_music_id, compared_music_id, star_level = state
-            unrated_music = self.controller.get_music_details(unrated_music_id)
-            compared_music = self.controller.get_music_details(compared_music_id)
+            print("DEBUG: Valid state found, proceeding with comparison")
+            music_a_id, music_b_id, context = state
+            print(f"DEBUG: Getting details for music_a_id={music_a_id}, music_b_id={music_b_id}")
+            music_a = self.controller.get_music_details(music_a_id)
+            music_b = self.controller.get_music_details(music_b_id)
+            print(f"DEBUG: music_a={music_a}, music_b={music_b}")
             
-            if not unrated_music or not compared_music:
+            if not music_a or not music_b:
+                print("DEBUG: One or both music details are None")
                 self.comparison_panel.Hide()
                 self.panel.Layout()
                 wx.MessageBox(
@@ -322,93 +346,83 @@ class MusicApp(wx.Frame):
                 )
                 return
 
-            self._update_comparison_ui(unrated_music, compared_music, star_level)
+            print("DEBUG: About to call _update_comparison_ui")
+            self._update_comparison_ui(music_a, music_b, context)
         except Exception as e:
+            print(f"DEBUG: Exception caught in start_comparison: {e}")
+            import traceback
+            traceback.print_exc()
             self.comparison_panel.Hide()
             self.panel.Layout()
             wx.MessageBox(
-                'Todas as músicas foram classificadas!',
-                'Finalizado',
-                wx.OK | wx.ICON_INFORMATION
+                f'Erro na comparação: {str(e)}',
+                'Erro',
+                wx.OK | wx.ICON_ERROR
             )
 
-    def _update_comparison_ui(self, unrated_music, compared_music, star_level):
+    def _update_comparison_ui(self, music_a, music_b, context):
         """Atualiza a interface de comparação."""
-        # Atualizar nomes das músicas
-        self.song_a_name.SetLabel(os.path.basename(unrated_music['path']))
-        
-        # Se é uma comparação inicial (duas músicas não classificadas), não mostrar estrelas
-        if compared_music['stars'] == 0:
-            self.song_b_name.SetLabel(os.path.basename(compared_music['path']))
-            self.comparison_title.SetLabel("Qual música você prefere?")
-        else:
-            # Comparação com música já classificada - mostrar nível de estrelas
-            stars_text = "★" * compared_music['stars']
-            self.song_b_name.SetLabel(f"{os.path.basename(compared_music['path'])} ({stars_text})")
-            self.comparison_title.SetLabel(f"É melhor que uma música {compared_music['stars']} estrela{'s' if compared_music['stars'] > 1 else ''}?")
-        
-        self.song_a_name.GetParent().Layout()
-        self.song_b_name.GetParent().Layout()
+        print(f"DEBUG: _update_comparison_ui called with context={context}")
+        try:
+            # Atualizar nomes das músicas
+            self.song_a_name.SetLabel(os.path.basename(music_a['path']))
+            self.song_b_name.SetLabel(os.path.basename(music_b['path']))
+            
+            # Mostrar contexto da comparação
+            if context == 'initial':
+                context_text = "Comparação inicial - Qual música você prefere?"
+            elif context == 'refinement':
+                context_text = f"Refinamento - A: {music_a['stars']}⭐ vs B: {music_b['stars']}⭐"
+            else:
+                context_text = "Qual música você prefere?"
+                
+            # Se existe um label de contexto, atualizar (senão criar depois)
+            if hasattr(self, 'context_label'):
+                self.context_label.SetLabel(context_text)
+            
+            # Mostrar botão de skip apenas para músicas não classificadas (stars = 0)
+            # Música A - mostrar skip se não foi classificada
+            self.skip_a_button.Show(music_a['stars'] == 0)
+            buttons_panel_a = self.skip_a_button.GetParent()
+            buttons_panel_a.Layout()
+            
+            # Música B - mostrar skip apenas se não foi classificada
+            self.skip_b_button.Show(music_b['stars'] == 0)
+            buttons_panel_b = self.skip_b_button.GetParent()
+            buttons_panel_b.Layout()
+            
+            print("DEBUG: About to show comparison panel")
+            # Mostrar o painel de comparação
+            self.comparison_panel.Show()
+            self.panel.Layout()
+            self.comparison_panel.Layout()
+            self.comparison_panel.Refresh()
+            self.panel.Layout()
+            self.Layout()
+            print("DEBUG: Comparison panel should be visible now")
+        except Exception as e:
+            print(f"DEBUG: Exception in _update_comparison_ui: {e}")
+            import traceback
+            traceback.print_exc()
 
-        # Verificar se a música B já foi classificada
-        is_compared_music_rated = self.controller.is_music_rated(compared_music['id'])
-        self.skip_b_button.Show(not is_compared_music_rated)
-        buttons_panel_b = self.skip_b_button.GetParent()
-        buttons_panel_b.Layout()
-        
-        # Calcular progresso baseado no nível atual (5→1)
-        if compared_music['stars'] == 0:
-            progress = 10  # Comparação inicial
-        else:
-            progress = (6 - star_level) * 20  # 20% por nível
-        self.comparison_progress.SetValue(progress)
-        
-        self.comparison_panel.Show()
-        self.song_a_panel.Layout()
-        self.song_b_panel.Layout()
-        self.comparison_panel.Layout()
-        self.comparison_panel.Refresh()
-        self.panel.Layout()
-        self.Layout()
+
 
     def on_comparison_choice(self, choice):
-        """Lida com a escolha do usuário na comparação descendente."""
+        """Lida com a escolha do usuário na comparação."""
         state = self.controller.get_current_comparison_state()
         if not state:
             return
 
-        unrated_music_id, compared_music_id, star_level = state
-        compared_music = self.controller.get_music_details(compared_music_id)
-
-        # Se é uma comparação inicial (duas músicas não classificadas)
-        if compared_music['stars'] == 0:
-            if choice == 0:  # Escolheu a primeira música
-                # Primeira música ganha, classifica como 3 estrelas e a segunda como 2
-                self.controller.classify_music(unrated_music_id, 3)
-                self.controller.classify_music(compared_music_id, 2)
-            else:  # Escolheu a segunda música
-                # Segunda música ganha, classifica como 3 estrelas e a primeira como 2
-                self.controller.classify_music(compared_music_id, 3)
-                self.controller.classify_music(unrated_music_id, 2)
-            
-            self._finalize_comparison()
-            return
-
-        # Comparação com música já classificada (estratégia descendente)
-        if choice == 0:  # Escolheu a música não classificada
-            # A música não classificada é melhor que a de X estrelas
-            final_stars = min(star_level + 1, 5) if star_level < 5 else 5
-            self.controller.classify_music(unrated_music_id, final_stars)
-            self._finalize_comparison()
-        else:  # Escolheu a música já classificada
-            # A música não classificada não é melhor que a de X estrelas
-            # Continua testando o próximo nível (X-1)
-            next_state = self.controller.try_next_star_level(unrated_music_id, star_level - 1)
-            if next_state:
-                self.start_comparison()
-            else:
-                # Não há mais níveis, finaliza
-                self._finalize_comparison()
+        music_a_id, music_b_id, context = state
+        
+        # Determinar o vencedor baseado na escolha
+        winner_id = music_a_id if choice == 0 else music_b_id
+        
+        # Registrar a comparação no sistema
+        self.controller.make_comparison(music_a_id, music_b_id, winner_id)
+        
+        # Finalizar esta comparação
+        self._finalize_comparison()
 
     def _finalize_comparison(self):
         """Finaliza o processo de comparação."""
@@ -438,6 +452,7 @@ class MusicApp(wx.Frame):
 
     def on_start_comparison(self, event):
         """Inicia o processo de comparação."""
+        print("DEBUG: on_start_comparison button clicked")
         self.start_comparison()
 
     def on_stop_comparison(self, event):
@@ -458,56 +473,12 @@ class MusicApp(wx.Frame):
         if not state:
             return
 
-        unrated_music_id, compared_music_id, range_index = state
-        music_id = unrated_music_id if index == 0 else compared_music_id
+        music_a_id, music_b_id, context = state
+        music_id = music_a_id if index == 0 else music_b_id
             
-        # Atribuir -1 estrelas indica que a música foi pulada
-        self.controller.classify_music(music_id, -1)
+        # Marcar a música como pulada (-1 estrelas)
+        self.controller.skip_music(music_id)
             
-        if index == 0:  # Se pulou a música não classificada, vai para a próxima música não classificada
-            self.update_lists()
-            self.update_status()
-            self.controller.clear_comparison_state()
-            self.start_comparison()  # Inicia nova comparação com próxima música não classificada
-        else:  # Se pulou a música de comparação, busca outra música no mesmo range
-            try:
-                next_compared_id = self.controller.get_representative_music(range_index, exclude_id=unrated_music_id)
-                if next_compared_id:
-                    self.controller.comparison_state_model.save_comparison_state(unrated_music_id, next_compared_id, range_index)
-                    self.update_lists()  # Atualiza as listas antes de iniciar nova comparação
-                    self.start_comparison()
-                    # Força atualização do texto e layout dos botões da música B
-                    self.song_b_name.GetParent().Layout()
-                    self.song_b_panel.Layout()
-                else:
-                    # Se não há mais músicas neste range, avança para o próximo
-                    if not self.controller.is_last_range(range_index):
-                        self.controller.update_comparison_state(unrated_music_id, range_index + 1)
-                        self.update_lists()  # Atualiza as listas antes de iniciar nova comparação
-                        self.start_comparison()
-                        self.song_b_name.GetParent().Layout()
-                        self.song_b_panel.Layout()
-                    else:
-                        # Se não houver mais ranges, limpa o estado e atualiza a interface
-                        self.controller.clear_comparison_state()
-                        self.update_lists()
-                        self.update_status()
-                        self.comparison_panel.Hide()
-                        self.panel.Layout()
-                        # Finaliza a classificação desta música
-                        self.controller.finalize_classification(unrated_music_id)
-                        self.comparison_panel.Hide()
-                        self.update_lists()
-                        self.update_status()
-                        self.controller.clear_comparison_state()
-                        self.panel.Layout()
-                        self.main_splitter.Layout()
-            except ValueError:
-                # Se não conseguir encontrar uma próxima música, trata como finalização
-                self.controller.finalize_classification(unrated_music_id)
-                self.comparison_panel.Hide()
-                self.update_lists()
-                self.update_status()
-                self.controller.clear_comparison_state()
-                self.panel.Layout()
-                self.main_splitter.Layout()
+        # Limpar o estado atual e buscar próxima comparação
+        self.controller.clear_comparison_state()
+        self._finalize_comparison()
