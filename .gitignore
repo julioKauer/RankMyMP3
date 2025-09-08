@@ -6,8 +6,11 @@ __pycache__/
 # Caches
 *.cache
 *.log
+
+# Database files
 *.sqlite3
 *.db
+data/*.db
 
 # Virtual environment
 venv/
@@ -18,6 +21,37 @@ ENV/
 
 # Distribution / packaging
 build/
+
+# Arquivos de teste e debug específicos do projeto
+test_*.py
+debug_*.py
+*_test.py
+*_debug.py
+temp_*.py
+*_backup.py
+*_old.py
+*_broken.py
+*_new.py
+migrate_*.py
+system_test.py
+final_*.py
+
+# Arquivos temporários do sistema
+.DS_Store
+Thumbs.db
+*.tmp
+*.temp
+
+# IDE e editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs específicos
+*.log
+logs/
 dist/
 *.egg-info/
 .eggs/

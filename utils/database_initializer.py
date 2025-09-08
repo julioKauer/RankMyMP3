@@ -54,9 +54,17 @@ class DatabaseInitializer:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 unrated_music_id INTEGER,
                 compared_music_id INTEGER,
-                range_index INTEGER,
+                context TEXT,
                 FOREIGN KEY(unrated_music_id) REFERENCES music(id),
                 FOREIGN KEY(compared_music_id) REFERENCES music(id)
+            )
+        ''')
+
+        # Tabela de pastas
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS folders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                path TEXT UNIQUE NOT NULL
             )
         ''')
 

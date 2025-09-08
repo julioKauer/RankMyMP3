@@ -42,6 +42,7 @@ class MusicApp(wx.Frame):
         self.comparison_panel.Hide()
 
         # Configurar layouts
+        self._setup_menu()
         self._setup_layouts()
         self._setup_comparison_panel()
         self._setup_toolbar()
@@ -52,6 +53,25 @@ class MusicApp(wx.Frame):
 
         self.Centre()
         self.Show()
+
+    def _setup_menu(self):
+        """Configura o menu da aplicação."""
+        menubar = wx.MenuBar()
+        
+        # Menu Arquivo
+        file_menu = wx.Menu()
+        view_folders_item = file_menu.Append(wx.ID_ANY, "Ver Pastas\tCtrl+F", "Visualizar pastas adicionadas")
+        clear_folders_item = file_menu.Append(wx.ID_ANY, "Limpar Pastas\tCtrl+Shift+F", "Remover todas as pastas")
+        file_menu.AppendSeparator()
+        exit_item = file_menu.Append(wx.ID_EXIT, "Sair\tCtrl+Q", "Sair da aplicação")
+        
+        menubar.Append(file_menu, "&Arquivo")
+        self.SetMenuBar(menubar)
+        
+        # Bind eventos do menu
+        self.Bind(wx.EVT_MENU, self.on_view_folders, view_folders_item)
+        self.Bind(wx.EVT_MENU, self.on_clear_folders, clear_folders_item)
+        self.Bind(wx.EVT_MENU, self.on_exit, exit_item)
 
     def _setup_layouts(self):
         """Configura os layouts da interface."""
@@ -247,12 +267,12 @@ class MusicApp(wx.Frame):
             "Adicionar pasta de músicas"
         )
 
-        # Botão de iniciar comparações
+        # Botão de classificação (busca binária)
         start_comparison_tool = toolbar.AddTool(
             wx.ID_ANY,
-            "Iniciar Comparações",
+            "Classificar Músicas",
             wx.ArtProvider.GetBitmap(wx.ART_GO_FORWARD, wx.ART_TOOLBAR),
-            "Iniciar comparações"
+            "Classificar próxima música usando busca binária inteligente"
         )
 
         toolbar.Realize()
@@ -263,7 +283,7 @@ class MusicApp(wx.Frame):
 
     def _setup_statusbar(self):
         """Configura a barra de status."""
-        self.statusbar = self.CreateStatusBar(2)
+        self.statusbar = self.CreateStatusBar(3)  # 3 seções: músicas, classificadas, pastas
         self.update_status()
 
     def update_lists(self):
@@ -291,8 +311,10 @@ class MusicApp(wx.Frame):
         """Atualiza a barra de status."""
         total_musics = self.controller.get_total_musics_count()
         rated_musics = self.controller.get_rated_musics_count()
+        folder_count = self.controller.get_folder_count()
         self.statusbar.SetStatusText(f"Total de músicas: {total_musics}", 0)
-        self.statusbar.SetStatusText(f"Músicas classificadas: {rated_musics}", 1)
+        self.statusbar.SetStatusText(f"Classificadas: {rated_musics}", 1)
+        self.statusbar.SetStatusText(f"Pastas: {folder_count}", 2)
 
     def start_comparison(self):
         """Inicia uma nova comparação."""
@@ -317,7 +339,7 @@ class MusicApp(wx.Frame):
                     wx.OK | wx.ICON_ERROR
                 )
                 return
-            if not state or len(state) != 3:
+            if not state:
                 print("DEBUG: No valid state returned, showing message")
                 self.comparison_panel.Hide()
                 self.panel.Layout()
@@ -329,7 +351,9 @@ class MusicApp(wx.Frame):
                 return
 
             print("DEBUG: Valid state found, proceeding with comparison")
-            music_a_id, music_b_id, context = state
+            music_a_id = state['unrated_music_id']
+            music_b_id = state['compared_music_id'] 
+            context = state['context']
             print(f"DEBUG: Getting details for music_a_id={music_a_id}, music_b_id={music_b_id}")
             music_a = self.controller.get_music_details(music_a_id)
             music_b = self.controller.get_music_details(music_b_id)
@@ -413,7 +437,9 @@ class MusicApp(wx.Frame):
         if not state:
             return
 
-        music_a_id, music_b_id, context = state
+        music_a_id = state['unrated_music_id']
+        music_b_id = state['compared_music_id']
+        context = state['context']
         
         # Determinar o vencedor baseado na escolha
         winner_id = music_a_id if choice == 0 else music_b_id
@@ -439,7 +465,7 @@ class MusicApp(wx.Frame):
         # Verificar se há mais músicas para classificar
         try:
             next_state = self.controller.get_next_comparison()
-            if next_state and len(next_state) == 3:
+            if next_state:
                 wx.CallAfter(self.start_comparison)  # Inicia automaticamente a próxima comparação
             else:
                 wx.MessageBox('Todas as músicas foram classificadas!', 'Parabéns!', wx.OK | wx.ICON_INFORMATION)
@@ -456,7 +482,7 @@ class MusicApp(wx.Frame):
                 self.update_status()
 
     def on_start_comparison(self, event):
-        """Inicia o processo de comparação."""
+        """Inicia o processo de classificação por busca binária."""
         print("DEBUG: on_start_comparison button clicked")
         self.start_comparison()
 
@@ -487,3 +513,40 @@ class MusicApp(wx.Frame):
         # Limpar o estado atual e buscar próxima comparação
         self.controller.clear_comparison_state()
         self._finalize_comparison()
+
+    def on_view_folders(self, event):
+        """Mostra um diálogo com as pastas adicionadas."""
+        folders = self.controller.get_folders()
+        if not folders:
+            wx.MessageBox("Nenhuma pasta foi adicionada ainda.", "Pastas", wx.OK | wx.ICON_INFORMATION)
+            return
+        
+        folder_text = "\n".join([f"• {folder}" for folder in folders])
+        message = f"Pastas adicionadas ({len(folders)}):\n\n{folder_text}"
+        
+        dlg = wx.MessageDialog(self, message, "Pastas Adicionadas", wx.OK | wx.ICON_INFORMATION)
+        dlg.ShowModal()
+        dlg.Destroy()
+
+    def on_clear_folders(self, event):
+        """Remove todas as pastas (com confirmação)."""
+        folder_count = self.controller.get_folder_count()
+        if folder_count == 0:
+            wx.MessageBox("Não há pastas para remover.", "Limpar Pastas", wx.OK | wx.ICON_INFORMATION)
+            return
+        
+        result = wx.MessageBox(
+            f"Tem certeza que deseja remover todas as {folder_count} pastas?\n\n"
+            "Isso não afetará as músicas já adicionadas ao banco.",
+            "Confirmar Limpeza", 
+            wx.YES_NO | wx.ICON_QUESTION
+        )
+        
+        if result == wx.YES:
+            self.controller.clear_all_folders()
+            self.update_status()
+            wx.MessageBox("Todas as pastas foram removidas.", "Sucesso", wx.OK | wx.ICON_INFORMATION)
+
+    def on_exit(self, event):
+        """Sai da aplicação."""
+        self.Close()

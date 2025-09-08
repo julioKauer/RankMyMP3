@@ -8,8 +8,15 @@ class MusicModel:
 
     def add_music(self, path):
         cursor = self.conn.cursor()
-        cursor.execute('INSERT OR IGNORE INTO music (path) VALUES (?)', (path,))
-        self.conn.commit()
+        # Verificar se a música já existe
+        cursor.execute('SELECT COUNT(*) FROM music WHERE path = ?', (path,))
+        exists = cursor.fetchone()[0] > 0
+        
+        if not exists:
+            cursor.execute('INSERT INTO music (path) VALUES (?)', (path,))
+            self.conn.commit()
+            return True  # Música foi adicionada
+        return False  # Música já existia
 
     def get_unrated_musics(self):
         """

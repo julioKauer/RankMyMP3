@@ -1,56 +1,102 @@
-# RankMyMP3
+# RankMyMP3 🎵
 
-## Overview
-RankMyMP3 is a Python application designed to classify and rank music files using a user-friendly wxPython interface. The application follows the Model-View-Controller (MVC) design pattern and utilizes SQLite for data storage.
+Sistema inteligente de ranking de músicas usando comparações diretas e busca binária.
 
-## Features
-- **Binary Comparison**: Users can compare two music files and classify them based on preference.
-- **Ranking Registration**: The application maintains a ranking of music files based on user ratings.
-- **File Deletion to Trash**: Users can delete music files, which are sent to the trash instead of being permanently removed.
-- **Tag Association**: Music files can be associated with tags for better organization and retrieval.
-- **SQLite Data Storage**: All music information, including paths, ratings, and tags, is stored in an SQLite database.
+## 📋 Características
 
-## Project Structure
+- **Ranking por comparações**: Sistema baseado em comparações diretas entre músicas
+- **Busca binária inteligente**: Classificação eficiente com máximo de log₂(n) comparações por música
+- **Redistribuição automática**: Sistema de estrelas (1-5) redistribuído automaticamente
+- **Interface amigável**: Interface gráfica wxPython simples e intuitiva
+- **Gerenciamento de pastas**: Adição e gerenciamento de pastas de música
+- **Persistência**: Banco SQLite para armazenar comparações e rankings
+
+## 🏗️ Arquitetura
+
 ```
-RankMyMP3
-├── controllers
-│   └── music_controller.py
-├── models
-│   └── music_model.py
-├── views
-│   └── music_app.py
-├── utils
-│   └── file_operations.py
-├── data
-│   └── music_ranking.db
-├── main.py
-└── README.md
+RankMyMP3/
+├── controllers/          # Lógica de negócio
+│   ├── folder_controller.py    # Gerenciamento de pastas
+│   └── music_controller.py     # Lógica principal de ranking
+├── models/               # Camada de dados
+│   ├── comparison_model.py         # Comparações diretas
+│   ├── comparison_state_model.py   # Estado da busca binária
+│   ├── folder_model.py             # Dados de pastas
+│   └── music_model.py              # Dados das músicas
+├── views/                # Interface gráfica
+│   ├── folder_config_panel.py # Configuração de pastas
+│   └── music_app.py           # Interface principal
+├── utils/                # Utilitários
+│   ├── database_initializer.py # Inicialização do banco
+│   └── file_operations.py     # Operações de arquivo
+├── data/                 # Banco de dados
+│   └── music_ranking.db       # SQLite database
+└── main.py              # Ponto de entrada
 ```
 
-## Installation
-1. Clone the repository:
-   ```
-   git clone <repository-url>
-   ```
-2. Navigate to the project directory:
-   ```
-   cd RankMyMP3
-   ```
-3. Install the required packages:
-   ```
-   pip install wxPython send2trash
-   ```
+## 🚀 Como usar
 
-## Usage
-1. Run the application:
-   ```
+1. **Executar aplicação**:
+   ```bash
    python main.py
    ```
-2. Use the "Começar a Comparar" button to start comparing music files.
-3. Use the "Ver Ranking" button to view the current rankings of the music files.
 
-## Contributing
-Contributions are welcome! Please feel free to submit a pull request or open an issue for any suggestions or improvements.
+2. **Adicionar música**:
+   - Clique no botão "📁" na toolbar
+   - Selecione uma pasta com arquivos MP3
+   - As músicas serão automaticamente importadas
 
-## License
-This project is licensed under the MIT License. See the LICENSE file for more details.
+3. **Classificar músicas**:
+   - Clique em "🎯 Iniciar Classificação"
+   - Compare as duas músicas apresentadas
+   - Clique em "Prefiro Esta" na música de sua preferência
+   - Continue até classificar todas as músicas
+
+4. **Ver ranking**:
+   - O ranking é exibido automaticamente na coluna direita
+   - Músicas são ordenadas por estrelas (5⭐ = melhor)
+
+## 🧠 Como funciona
+
+### Sistema de Comparações
+- Cada classificação é baseada em **comparações diretas** entre músicas
+- Comparações são armazenadas permanentemente no banco
+- O ranking é construído a partir do histórico de comparações
+
+### Busca Binária Inteligente
+- Nova música é inserida no ranking usando busca binária
+- **Máximo log₂(n) comparações** por música (eficiente para milhares de músicas)
+- Posicionamento preciso baseado em comparações diretas
+
+### Sistema de Estrelas
+- Estrelas são apenas **visualização** do ranking real
+- **Redistribuição automática**: 1-5 estrelas distribuídas proporcionalmente
+- Ranking verdadeiro é sempre baseado em comparações
+
+## 🗃️ Banco de Dados
+
+O sistema usa SQLite com 4 tabelas principais:
+
+- **`music`**: Músicas e metadados (path, stars, tags)
+- **`comparisons`**: Comparações diretas (música_a vs música_b, vencedor)  
+- **`comparison_state`**: Estado da busca binária (contexto, posições)
+- **`folders`**: Pastas adicionadas pelo usuário
+
+## 🔧 Requisitos
+
+- Python 3.7+
+- wxPython (`pip install wxpython`)
+- SQLite (incluído no Python)
+
+## 📊 Escalabilidade
+
+- ✅ **100 músicas**: ~7 comparações por música
+- ✅ **1.000 músicas**: ~10 comparações por música  
+- ✅ **10.000 músicas**: ~14 comparações por música
+- ✅ **100.000 músicas**: ~17 comparações por música
+
+**Complexidade**: O(log n) por música → Sistema escala para qualquer quantidade de músicas!
+
+---
+
+*Sistema desenvolvido com foco em eficiência e simplicidade.*

@@ -3,19 +3,6 @@ import sqlite3
 class FolderModel:
     def __init__(self, db_path="data/music_ranking.db"):
         self.db_path = db_path
-        self._initialize_db()
-
-    def _initialize_db(self):
-        """Create the folders table if it doesn't exist."""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS folders (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    path TEXT UNIQUE NOT NULL
-                )
-            """)
-            conn.commit()
 
     def get_folders(self):
         """Retrieve all saved folders."""
@@ -36,4 +23,25 @@ class FolderModel:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM folders WHERE path = ?", (folder_path,))
+            conn.commit()
+
+    def folder_exists(self, folder_path):
+        """Check if a folder already exists in the database."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM folders WHERE path = ?", (folder_path,))
+            return cursor.fetchone()[0] > 0
+
+    def get_folder_count(self):
+        """Get the total number of folders."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM folders")
+            return cursor.fetchone()[0]
+
+    def clear_all_folders(self):
+        """Remove all folders from the database."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM folders")
             conn.commit()
