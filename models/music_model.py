@@ -9,14 +9,15 @@ class MusicModel:
     def add_music(self, path):
         cursor = self.conn.cursor()
         # Verificar se a música já existe
-        cursor.execute('SELECT COUNT(*) FROM music WHERE path = ?', (path,))
-        exists = cursor.fetchone()[0] > 0
+        cursor.execute('SELECT id FROM music WHERE path = ?', (path,))
+        existing = cursor.fetchone()
         
-        if not exists:
+        if existing:
+            return existing[0]  # Retornar ID da música existente
+        else:
             cursor.execute('INSERT INTO music (path) VALUES (?)', (path,))
             self.conn.commit()
-            return True  # Música foi adicionada
-        return False  # Música já existia
+            return cursor.lastrowid  # Retornar ID da música recém-criada
 
     def get_unrated_musics(self):
         """
@@ -24,9 +25,12 @@ class MusicModel:
         Músicas com stars = -1 são consideradas puladas e não são retornadas.
         """
         cursor = self.conn.cursor()
-        cursor.execute('SELECT id, path, stars FROM music WHERE stars = 0')  # Apenas músicas não classificadas
+        cursor.execute('SELECT id, path, stars FROM music WHERE stars = 0')
         results = cursor.fetchall()
-        return [{'id': row[0], 'path': row[1], 'stars': row[2]} for row in results]
+        
+        music_list = [{'id': row[0], 'path': row[1], 'stars': row[2]} for row in results]
+        
+        return music_list
 
     def get_two_unrated_musics(self):
         """
@@ -196,12 +200,72 @@ class MusicModel:
     def get_all_classified_musics_by_quality(self):
         """
         Retorna todas as músicas classificadas ordenadas por qualidade real.
-        Usa o ID como proxy para ordem de classificação (músicas classificadas mais recentemente 
-        com o mesmo nível de estrelas são consideradas mais refinadas na comparação).
+        Para preservar a ordem real do ranking baseado nas comparações,
+        precisamos reconstruir o ranking a partir das comparações, não apenas ordenar por estrelas.
         """
-        cursor = self.conn.cursor()
-        # Ordena por estrelas descendente e depois por ID descendente 
-        # (músicas mais recentes com mesmo nível ficam primeiro)
-        cursor.execute('SELECT id, path, stars FROM music WHERE stars > 0 ORDER BY stars DESC, id DESC')
-        results = cursor.fetchall()
-        return [{'id': row[0], 'path': row[1], 'stars': row[2]} for row in results]
+        from models.comparison_model import ComparisonModel
+        comparison_model = ComparisonModel(self.conn)
+        
+        # Reconstruir o ranking real baseado nas comparações
+        ranking = self._build_ranking_from_comparisons(comparison_model)
+        
+        if not ranking:
+            # Fallback: ordenar por estrelas e ID se não há comparações
+            cursor = self.conn.cursor()
+            cursor.execute('SELECT id, path, stars FROM music WHERE stars > 0 ORDER BY stars DESC, id ASC')
+            results = cursor.fetchall()
+            return [{'id': row[0], 'path': row[1], 'stars': row[2]} for row in results]
+        
+        # Obter detalhes das músicas na ordem real do ranking
+        result = []
+        for music_id in ranking:
+            details = self.get_music_details(music_id)
+            if details and details['stars'] > 0:  # Apenas músicas classificadas
+                result.append(details)
+        
+        return result
+    
+    def _build_ranking_from_comparisons(self, comparison_model):
+        """
+        Reconstrói o ranking baseado nas comparações existentes.
+        """
+        from collections import defaultdict, deque
+        
+        # Obter todas as comparações
+        comparisons = comparison_model.get_comparisons()
+        if not comparisons:
+            return []
+        
+        # Construir grafo direcionado baseado nas comparações
+        graph = defaultdict(list)  # vencedor -> [perdedores]
+        in_degree = defaultdict(int)  # quantas músicas são melhores que esta
+        all_musics = set()
+        
+        for music_a, music_b, winner in comparisons:
+            loser = music_b if winner == music_a else music_a
+            all_musics.add(music_a)
+            all_musics.add(music_b)
+            
+            # Evitar duplicatas
+            if loser not in graph[winner]:
+                graph[winner].append(loser)
+                in_degree[loser] += 1
+            
+            # Inicializar in_degree para vencedores
+            if winner not in in_degree:
+                in_degree[winner] = 0
+        
+        # Ordenação topológica para encontrar a ordem
+        queue = deque([music for music in all_musics if in_degree[music] == 0])
+        ranking = []
+        
+        while queue:
+            current = queue.popleft()
+            ranking.append(current)
+            
+            for neighbor in graph[current]:
+                in_degree[neighbor] -= 1
+                if in_degree[neighbor] == 0:
+                    queue.append(neighbor)
+        
+        return ranking

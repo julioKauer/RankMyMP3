@@ -295,17 +295,15 @@ class MusicApp(wx.Frame):
             index = self.unrated_list.GetItemCount()
             self.unrated_list.InsertItem(index, os.path.basename(music['path']))
 
-        # Atualizar ranking (apenas músicas classificadas com stars > 0)
+        # Atualizar ranking usando ordenação topológica
         self.ranking_list.DeleteAllItems()
-        ranked_musics = self.controller.get_ranking()
-        ranked_index = 1  # Contador para posição no ranking
-        for music in ranked_musics:
+        ranked_musics = self.controller.get_classified_musics_topological()
+        for position, music in enumerate(ranked_musics, 1):
             if music['stars'] is not None and music['stars'] > 0:  # Apenas músicas efetivamente classificadas
                 index = self.ranking_list.GetItemCount()
-                self.ranking_list.InsertItem(index, str(ranked_index))
+                self.ranking_list.InsertItem(index, str(position))
                 self.ranking_list.SetItem(index, 1, os.path.basename(music['path']))
                 self.ranking_list.SetItem(index, 2, "★" * music['stars'])
-                ranked_index += 1  # Incrementa apenas quando uma música é adicionada ao ranking
 
     def update_status(self):
         """Atualiza a barra de status."""
@@ -487,11 +485,12 @@ class MusicApp(wx.Frame):
         self.start_comparison()
 
     def on_stop_comparison(self, event):
-        """Para o processo de comparação atual."""
+        """Para o processo de comparação atual, mas mantém o progresso."""
         self.comparison_panel.Hide()
         self.update_lists()
         self.update_status()
-        self.controller.clear_comparison_state()
+        # Pausar comparação (manter progresso) em vez de limpar completamente
+        self.controller.pause_comparison()
         self.panel.Layout()
         self.main_splitter.Layout()
 
