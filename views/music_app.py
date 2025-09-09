@@ -460,16 +460,20 @@ class MusicApp(wx.Frame):
         
         self.panel.Layout()
         
-        # Verificar se há mais músicas para classificar
-        try:
-            next_state = self.controller.get_next_comparison()
-            if next_state:
-                wx.CallAfter(self.start_comparison)  # Inicia automaticamente a próxima comparação
-            else:
+        # Verificar se há mais músicas para classificar apenas se a classificação foi finalizada
+        if classification_finished:
+            try:
+                next_state = self.controller.get_next_comparison()
+                if next_state:
+                    wx.CallAfter(self.start_comparison)  # Inicia automaticamente a próxima comparação
+                else:
+                    wx.MessageBox('Todas as músicas foram classificadas!', 'Parabéns!', wx.OK | wx.ICON_INFORMATION)
+            except Exception as e:
+                # Se houver erro, assumir que acabaram as músicas
                 wx.MessageBox('Todas as músicas foram classificadas!', 'Parabéns!', wx.OK | wx.ICON_INFORMATION)
-        except Exception as e:
-            # Se houver erro, assumir que acabaram as músicas
-            wx.MessageBox('Todas as músicas foram classificadas!', 'Parabéns!', wx.OK | wx.ICON_INFORMATION)
+        else:
+            # Se a classificação não foi finalizada (skip), apenas inicia a próxima comparação
+            wx.CallAfter(self.start_comparison)
 
     def on_add_folder(self, event):
         """Abre o diálogo para adicionar uma pasta de músicas."""
@@ -503,15 +507,19 @@ class MusicApp(wx.Frame):
         if not state:
             return
 
-        music_a_id, music_b_id, context = state
+        music_a_id = state['unrated_music_id']
+        music_b_id = state['compared_music_id'] 
+        context = state['context']
         music_id = music_a_id if index == 0 else music_b_id
             
         # Marcar a música como pulada (-1 estrelas)
         self.controller.skip_music(music_id)
             
-        # Limpar o estado atual e buscar próxima comparação
+        # Limpar o estado atual de comparação para permitir nova busca
         self.controller.clear_comparison_state()
-        self._finalize_comparison()
+        
+        # Avançar para próxima comparação (não limpar estado novamente)
+        self._finalize_comparison(classification_finished=False)
 
     def on_view_folders(self, event):
         """Mostra um diálogo com as pastas adicionadas."""

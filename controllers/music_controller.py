@@ -326,16 +326,23 @@ class MusicController:
         # Verificar se há busca binária em andamento para uma música não classificada
         current_state = self.comparison_state_model.get_comparison_state()
         if current_state:
-            # Verificar se a música do estado atual ainda precisa ser classificada
+            # Verificar se AMBAS as músicas do estado atual ainda são válidas
             unrated_music_id = current_state['unrated_music_id']
-            music_data = self.music_model.get_music_details(unrated_music_id)
+            compared_music_id = current_state['compared_music_id']
             
-            if music_data and music_data.get('stars', 0) == 0:
-                # A música ainda não foi classificada, continuar com o estado salvo
+            unrated_data = self.music_model.get_music_details(unrated_music_id)
+            compared_data = self.music_model.get_music_details(compared_music_id)
+            
+            # Ambas as músicas devem existir e nenhuma deve estar pulada (-1)
+            unrated_valid = unrated_data and unrated_data.get('stars', 0) == 0
+            compared_valid = compared_data and compared_data.get('stars', 0) != -1
+            
+            if unrated_valid and compared_valid:
+                # Ambas as músicas são válidas, continuar com o estado salvo
                 return current_state
             else:
-                # A música já foi classificada, limpar estado inconsistente
-                print(f"DEBUG: Clearing inconsistent state for already classified music {unrated_music_id}")
+                # Estado inválido - uma das músicas foi pulada ou classificada
+                print(f"DEBUG: Clearing invalid state - unrated_id={unrated_music_id}({unrated_data.get('stars', 'N/A') if unrated_data else 'None'}), compared_id={compared_music_id}({compared_data.get('stars', 'N/A') if compared_data else 'None'})")
                 self.comparison_state_model.clear_comparison_state()
             
         # Iniciar nova busca binária para próxima música não classificada
@@ -374,6 +381,14 @@ class MusicController:
                 # Se a música atual é uma das duas primeiras, fazer comparação inicial
                 if new_music_id in [first_music['id'], second_music['id']]:
                     other_music_id = second_music['id'] if new_music_id == first_music['id'] else first_music['id']
+                    
+                    # Verificar se já existe um estado idêntico salvo para evitar loop
+                    current_state = self.comparison_state_model.get_comparison_state()
+                    if (current_state and 
+                        current_state['unrated_music_id'] == new_music_id and 
+                        current_state['compared_music_id'] == other_music_id):
+                        print(f"DEBUG: Identical state already exists, skipping save")
+                        return current_state
                     
                     # Iniciar comparação entre as duas primeiras músicas
                     context = f"initial_comparison_0_0_0"

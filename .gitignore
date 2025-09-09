@@ -81,3 +81,12 @@ Thumbs.db
 
 # Ignore SQLite database backups
 *.db-journal
+
+# Test music files (should not be committed)
+test_music/
+*.mp3
+*.wav
+*.flac
+*.m4a
+*.ogg
+*.aac
