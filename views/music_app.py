@@ -5,7 +5,7 @@ from controllers.music_controller import MusicController
 
 class MusicApp(wx.Frame):
     def __init__(self, music_controller: MusicController):
-        super().__init__(parent=None, title='RankMyMP3', size=(1000, 600))
+        super().__init__(parent=None, title='RankMyMP3', size=(1200, 700))
 
         self.controller = music_controller
 
@@ -15,14 +15,14 @@ class MusicApp(wx.Frame):
         # Criar o layout principal (divisão horizontal)
         self.main_splitter = wx.SplitterWindow(self.panel)
 
-        # Painel esquerdo (músicas não classificadas)
+        # Painel esquerdo (árvore de análise)
         self.left_panel = wx.Panel(self.main_splitter)
-        self.unrated_list = wx.ListCtrl(
+        
+        # Substituir ListCtrl por TreeCtrl para estrutura hierárquica
+        self.analysis_tree = wx.TreeCtrl(
             self.left_panel,
-            style=wx.LC_REPORT | wx.LC_SINGLE_SEL
+            style=wx.TR_DEFAULT_STYLE | wx.TR_HIDE_ROOT | wx.TR_MULTIPLE
         )
-        self.unrated_list.InsertColumn(0, "Músicas Não Classificadas")
-        self.unrated_list.SetColumnWidth(0, 500)
 
         # Painel direito (ranking)
         self.right_panel = wx.Panel(self.main_splitter)
@@ -37,9 +37,8 @@ class MusicApp(wx.Frame):
         self.ranking_list.SetColumnWidth(1, 500)
         self.ranking_list.SetColumnWidth(2, 200)
 
-        # Área de comparação (inicialmente escondida)
+        # Área de comparação (sempre visível, mas compacta)
         self.comparison_panel = wx.Panel(self.panel)
-        self.comparison_panel.Hide()
 
         # Configurar layouts
         self._setup_menu()
@@ -47,9 +46,14 @@ class MusicApp(wx.Frame):
         self._setup_comparison_panel()
         self._setup_toolbar()
         self._setup_statusbar()
+        self._setup_tree_events()
 
         # Atualizar as listas
-        self.update_lists()
+        self.update_analysis_tree()
+        self.update_ranking_list()
+
+        # Iniciar primeira comparação automaticamente
+        wx.CallAfter(self.start_auto_comparison)
 
         self.Centre()
         self.Show()
@@ -82,15 +86,15 @@ class MusicApp(wx.Frame):
         self.main_splitter.SplitVertically(self.left_panel, self.right_panel)
         self.main_splitter.SetMinimumPaneSize(500)
 
-        # Layout do painel esquerdo
+        # Layout do painel esquerdo (árvore de análise)
         left_sizer = wx.BoxSizer(wx.VERTICAL)
-        left_sizer.Add(wx.StaticText(self.left_panel, label="Músicas Não Classificadas:"), 0, wx.ALL, 5)
-        left_sizer.Add(self.unrated_list, 1, wx.EXPAND | wx.ALL, 5)
+        left_sizer.Add(wx.StaticText(self.left_panel, label="🎵 Em Análise:"), 0, wx.ALL, 5)
+        left_sizer.Add(self.analysis_tree, 1, wx.EXPAND | wx.ALL, 5)
         self.left_panel.SetSizer(left_sizer)
 
-        # Layout do painel direito
+        # Layout do painel direito (ranking)
         right_sizer = wx.BoxSizer(wx.VERTICAL)
-        right_sizer.Add(wx.StaticText(self.right_panel, label="Ranking Atual:"), 0, wx.ALL, 5)
+        right_sizer.Add(wx.StaticText(self.right_panel, label="🏆 Ranking Atual:"), 0, wx.ALL, 5)
         right_sizer.Add(self.ranking_list, 1, wx.EXPAND | wx.ALL, 5)
         self.right_panel.SetSizer(right_sizer)
 
@@ -101,159 +105,117 @@ class MusicApp(wx.Frame):
         self.panel.SetSizer(main_sizer)
 
     def _setup_comparison_panel(self):
-        """Configura o painel de comparação."""
-        # Definir um tamanho mínimo para o painel de comparação
-        self.comparison_panel.SetMinSize((900, 400))  # Altura aumentada
+        """Configura o painel de comparação - sempre visível e compacto."""
+        # Definir um tamanho fixo menor para o painel de comparação
+        self.comparison_panel.SetMinSize((900, 180))  # Mais compacto
         
         comparison_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        # Container para o título para garantir espaço adequado
-        title_container = wx.Panel(self.comparison_panel)
-        title_sizer = wx.BoxSizer(wx.VERTICAL)
-        
-        # Título da comparação
+        # Título da comparação mais compacto
         self.comparison_title = wx.StaticText(
-            title_container,
-            label="Comparação em Andamento",
+            self.comparison_panel,
+            label="🆚 Comparação Ativa",
             style=wx.ALIGN_CENTER_HORIZONTAL
         )
         title_font = self.comparison_title.GetFont()
-        title_font.SetPointSize(14)
+        title_font.SetPointSize(12)  # Menor
         title_font.SetWeight(wx.FONTWEIGHT_BOLD)
         self.comparison_title.SetFont(title_font)
         
-        # Adiciona espaço extra acima e abaixo do texto
-        title_sizer.Add((-1, 5))  # Espaço superior
-        title_sizer.Add(self.comparison_title, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 20)
-        title_sizer.Add((-1, 10))  # Espaço inferior maior para a cedilha
-        
-        title_container.SetSizer(title_sizer)
-        comparison_sizer.Add(title_container, 0, wx.EXPAND)
+        comparison_sizer.Add(self.comparison_title, 0, wx.EXPAND | wx.ALL, 5)
 
-        # Área das músicas sendo comparadas com tamanho mínimo
+        # Área das músicas sendo comparadas - mais compacta
         songs_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        songs_sizer.SetMinSize((780, 200))  # Altura reduzida
 
         # Música A
         self.song_a_panel = wx.Panel(self.comparison_panel)
         song_a_sizer = wx.BoxSizer(wx.VERTICAL)
         
-                # Container para o nome da música A
-        name_container_a = wx.Panel(self.song_a_panel)
-        name_container_sizer_a = wx.BoxSizer(wx.VERTICAL)
-        
-        # Nome da música A com fonte maior
-        self.song_a_name = wx.StaticText(name_container_a, label="", style=wx.ST_NO_AUTORESIZE | wx.ALIGN_CENTER)
+        # Nome da música A compacto
+        self.song_a_name = wx.StaticText(self.song_a_panel, label="", style=wx.ALIGN_CENTER)
         font = self.song_a_name.GetFont()
-        font.SetPointSize(12)  # Fonte maior
-        font.SetWeight(wx.FONTWEIGHT_BOLD)  # Texto em negrito
+        font.SetPointSize(10)  # Fonte menor para compacto
+        font.SetWeight(wx.FONTWEIGHT_BOLD)
         self.song_a_name.SetFont(font)
-        self.song_a_name.Wrap(300)  # Largura máxima para wrap do texto
-        name_container_sizer_a.Add(self.song_a_name, 1, wx.EXPAND | wx.ALL, 5)
-        name_container_a.SetSizer(name_container_sizer_a)
         
-        # Adiciona o container do nome com altura mínima
-        song_a_sizer.Add(name_container_a, 0, wx.EXPAND | wx.ALL, 10)
-        name_container_a.SetMinSize((-1, 60))  # Altura mínima para o nome
+        song_a_sizer.Add(self.song_a_name, 0, wx.EXPAND | wx.ALL, 5)
         
-        # Botões da música A em um painel separado
+        # Botões da música A mais compactos
         buttons_panel_a = wx.Panel(self.song_a_panel)
-        song_a_buttons = wx.BoxSizer(wx.VERTICAL)
+        song_a_buttons = wx.BoxSizer(wx.HORIZONTAL)  # Horizontal para compactar
         
-        self.song_a_button = wx.Button(buttons_panel_a, label="Prefiro Esta")
-        self.song_a_button.SetMinSize((200, 40))  # Botões mais largos
-        self.skip_a_button = wx.Button(buttons_panel_a, label="Pular Esta")
-        self.skip_a_button.SetMinSize((200, 40))
+        self.song_a_button = wx.Button(buttons_panel_a, label="Prefiro")
+        self.song_a_button.SetMinSize((80, 30))  # Botões menores
+        self.skip_a_button = wx.Button(buttons_panel_a, label="Ignorar")
+        self.skip_a_button.SetMinSize((80, 30))
         
-        song_a_buttons.Add(self.song_a_button, 0, wx.EXPAND | wx.ALL, 5)
-        song_a_buttons.Add(self.skip_a_button, 0, wx.EXPAND | wx.ALL, 5)
+        song_a_buttons.Add(self.song_a_button, 0, wx.ALL, 2)
+        song_a_buttons.Add(self.skip_a_button, 0, wx.ALL, 2)
         buttons_panel_a.SetSizer(song_a_buttons)
         
-        song_a_sizer.Add(buttons_panel_a, 0, wx.ALIGN_CENTER | wx.ALL, 10)
-        
+        song_a_sizer.Add(buttons_panel_a, 0, wx.ALIGN_CENTER | wx.ALL, 5)
         self.song_a_panel.SetSizer(song_a_sizer)
 
-        # VS simplificado e menor
+        # VS simplificado
         vs_panel = wx.Panel(self.comparison_panel)
-        vs_panel.SetMinSize((80, 80))  # Tamanho reduzido
+        vs_panel.SetMinSize((60, 60))  # Ainda menor
         vs_sizer = wx.BoxSizer(wx.VERTICAL)
         
         vs_label = wx.StaticText(vs_panel, label="VS", style=wx.ALIGN_CENTER_HORIZONTAL)
         font = vs_label.GetFont()
-        font.SetPointSize(12)  # Fonte um pouco menor
+        font.SetPointSize(10)  # Fonte menor
         font.SetWeight(wx.FONTWEIGHT_BOLD)
         vs_label.SetFont(font)
         
-        # Centraliza o VS diretamente no painel
         vs_sizer.AddStretchSpacer(1)
-        vs_sizer.Add(vs_label, 0, wx.CENTER | wx.ALL, 5)
+        vs_sizer.Add(vs_label, 0, wx.CENTER)
         vs_sizer.AddStretchSpacer(1)
-        
         vs_panel.SetSizer(vs_sizer)
 
-        # Música B
+        # Música B - espelho da A
         self.song_b_panel = wx.Panel(self.comparison_panel)
         song_b_sizer = wx.BoxSizer(wx.VERTICAL)
         
-                # Container para o nome da música B
-        name_container_b = wx.Panel(self.song_b_panel)
-        name_container_sizer_b = wx.BoxSizer(wx.VERTICAL)
-        
-        # Nome da música B com fonte maior
-        self.song_b_name = wx.StaticText(name_container_b, label="", style=wx.ST_NO_AUTORESIZE | wx.ALIGN_CENTER)
+        # Nome da música B compacto
+        self.song_b_name = wx.StaticText(self.song_b_panel, label="", style=wx.ALIGN_CENTER)
         font = self.song_b_name.GetFont()
-        font.SetPointSize(12)  # Fonte maior
-        font.SetWeight(wx.FONTWEIGHT_BOLD)  # Texto em negrito
+        font.SetPointSize(10)  # Fonte menor para compacto
+        font.SetWeight(wx.FONTWEIGHT_BOLD)
         self.song_b_name.SetFont(font)
-        self.song_b_name.Wrap(300)  # Largura máxima para wrap do texto
-        name_container_sizer_b.Add(self.song_b_name, 1, wx.EXPAND | wx.ALL, 5)
-        name_container_b.SetSizer(name_container_sizer_b)
         
-        # Adiciona o container do nome com altura mínima
-        song_b_sizer.Add(name_container_b, 0, wx.EXPAND | wx.ALL, 10)
-        name_container_b.SetMinSize((-1, 60))  # Altura mínima para o nome
+        song_b_sizer.Add(self.song_b_name, 0, wx.EXPAND | wx.ALL, 5)
         
-        # Botões da música B em um painel separado
+        # Botões da música B mais compactos
         buttons_panel_b = wx.Panel(self.song_b_panel)
-        song_b_buttons = wx.BoxSizer(wx.VERTICAL)
+        song_b_buttons = wx.BoxSizer(wx.HORIZONTAL)  # Horizontal para compactar
         
-        self.song_b_button = wx.Button(buttons_panel_b, label="Prefiro Esta")
-        self.song_b_button.SetMinSize((200, 40))  # Botões mais largos
-        self.skip_b_button = wx.Button(buttons_panel_b, label="Pular Esta")
-        self.skip_b_button.SetMinSize((200, 40))
+        self.song_b_button = wx.Button(buttons_panel_b, label="Prefiro")
+        self.song_b_button.SetMinSize((80, 30))  # Botões menores
+        self.skip_b_button = wx.Button(buttons_panel_b, label="Ignorar")
+        self.skip_b_button.SetMinSize((80, 30))
         
-        song_b_buttons.Add(self.song_b_button, 0, wx.EXPAND | wx.ALL, 5)
-        song_b_buttons.Add(self.skip_b_button, 0, wx.EXPAND | wx.ALL, 5)
+        song_b_buttons.Add(self.song_b_button, 0, wx.ALL, 2)
+        song_b_buttons.Add(self.skip_b_button, 0, wx.ALL, 2)
         buttons_panel_b.SetSizer(song_b_buttons)
         
-        song_b_sizer.Add(buttons_panel_b, 0, wx.ALIGN_CENTER | wx.ALL, 10)
-        
+        song_b_sizer.Add(buttons_panel_b, 0, wx.ALIGN_CENTER | wx.ALL, 5)
         self.song_b_panel.SetSizer(song_b_sizer)
 
-        # Adicionar elementos ao sizer horizontal com mais espaçamento e proporções fixas
-        songs_sizer.Add(self.song_a_panel, 1, wx.EXPAND | wx.ALL, 20)
-        songs_sizer.Add(vs_panel, 0, wx.EXPAND | wx.ALIGN_CENTER_VERTICAL | wx.LEFT | wx.RIGHT, 30)
-        songs_sizer.Add(self.song_b_panel, 1, wx.EXPAND | wx.ALL, 20)
+        # Montar o layout horizontal das músicas
+        songs_sizer.Add(self.song_a_panel, 1, wx.EXPAND | wx.ALL, 10)
+        songs_sizer.Add(vs_panel, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT | wx.RIGHT, 10)
+        songs_sizer.Add(self.song_b_panel, 1, wx.EXPAND | wx.ALL, 10)
 
-        # Adicionar ao sizer principal do painel de comparação
-        comparison_sizer.Add(songs_sizer, 1, wx.EXPAND | wx.ALL, 10)
-
-        # Progresso da comparação
-        self.comparison_progress = wx.Gauge(self.comparison_panel, range=100)
-        comparison_sizer.Add(self.comparison_progress, 0, wx.EXPAND | wx.ALL, 5)  # Padding reduzido
-
-        # Botão para parar a comparação centralizado
-        self.stop_comparison_button = wx.Button(self.comparison_panel, label="Parar Comparação")
-        comparison_sizer.Add(self.stop_comparison_button, 0, wx.ALL | wx.CENTER, 5)  # Padding reduzido
+        # Adicionar ao sizer principal
+        comparison_sizer.Add(songs_sizer, 1, wx.EXPAND | wx.ALL, 5)
 
         self.comparison_panel.SetSizer(comparison_sizer)
 
-        # Bind eventos
+        # Bind eventos dos botões
         self.song_a_button.Bind(wx.EVT_BUTTON, lambda evt: self.on_comparison_choice(0))
         self.song_b_button.Bind(wx.EVT_BUTTON, lambda evt: self.on_comparison_choice(1))
         self.skip_a_button.Bind(wx.EVT_BUTTON, lambda evt: self.on_skip_music(0))
         self.skip_b_button.Bind(wx.EVT_BUTTON, lambda evt: self.on_skip_music(1))
-        self.stop_comparison_button.Bind(wx.EVT_BUTTON, self.on_stop_comparison)
 
     def _setup_toolbar(self):
         """Configura a barra de ferramentas."""
@@ -267,35 +229,77 @@ class MusicApp(wx.Frame):
             "Adicionar pasta de músicas"
         )
 
-        # Botão de classificação (busca binária)
-        start_comparison_tool = toolbar.AddTool(
-            wx.ID_ANY,
-            "Classificar Músicas",
-            wx.ArtProvider.GetBitmap(wx.ART_GO_FORWARD, wx.ART_TOOLBAR),
-            "Classificar próxima música usando busca binária inteligente"
-        )
-
         toolbar.Realize()
 
         # Bind eventos
         self.Bind(wx.EVT_TOOL, self.on_add_folder, add_folder_tool)
-        self.Bind(wx.EVT_TOOL, self.on_start_comparison, start_comparison_tool)
 
     def _setup_statusbar(self):
         """Configura a barra de status."""
         self.statusbar = self.CreateStatusBar(3)  # 3 seções: músicas, classificadas, pastas
         self.update_status()
 
-    def update_lists(self):
-        """Atualiza as listas de músicas não classificadas e ranking."""
-        # Atualizar lista de músicas não classificadas
-        self.unrated_list.DeleteAllItems()
-        unrated_musics = self.controller.get_unrated_musics()
-        for music in unrated_musics:
-            index = self.unrated_list.GetItemCount()
-            self.unrated_list.InsertItem(index, os.path.basename(music['path']))
+    def update_analysis_tree(self):
+        """Atualiza a árvore de análise com músicas organizadas por pasta."""
+        # Salvar estado de expansão das pastas
+        expanded_folders = set()
+        root = self.analysis_tree.GetRootItem()
+        if root.IsOk():
+            analysis_root = self.analysis_tree.GetFirstChild(root)[0]
+            if analysis_root.IsOk():
+                folder_item = self.analysis_tree.GetFirstChild(analysis_root)[0]
+                while folder_item.IsOk():
+                    if self.analysis_tree.IsExpanded(folder_item):
+                        folder_name = self.analysis_tree.GetItemText(folder_item)
+                        expanded_folders.add(folder_name)
+                    folder_item = self.analysis_tree.GetNextSibling(folder_item)
+        
+        # Reconstruir árvore
+        self.analysis_tree.DeleteAllItems()
+        
+        # Criar raiz invisível
+        root = self.analysis_tree.AddRoot("Root")
+        
+        # Buscar músicas não classificadas organizadas por pasta
+        folders_dict = self.controller.get_unrated_musics_by_folder()
+        
+        # Adicionar seções principais
+        analysis_root = self.analysis_tree.AppendItem(root, "🎵 Em Análise")
+        self.analysis_tree.SetItemBold(analysis_root, True)
+        
+        # Adicionar pastas e músicas
+        for folder_path, musics in folders_dict.items():
+            folder_name = os.path.basename(folder_path) or folder_path
+            folder_display_name = f"📁 {folder_name} ({len(musics)} músicas)"
+            folder_item = self.analysis_tree.AppendItem(analysis_root, folder_display_name)
+            
+            # Adicionar músicas da pasta
+            for music in musics:
+                music_name = os.path.basename(music['path'])
+                music_item = self.analysis_tree.AppendItem(folder_item, f"🎵 {music_name}")
+                # Guardar o ID da música no item
+                self.analysis_tree.SetItemData(music_item, music['id'])
+            
+            # Restaurar estado de expansão
+            if folder_display_name in expanded_folders:
+                self.analysis_tree.Expand(folder_item)
+        
+        # Adicionar seção de ignoradas (colapsada por padrão)
+        ignored_musics = self.controller.get_ignored_musics()
+        if ignored_musics:
+            ignored_root = self.analysis_tree.AppendItem(root, f"❌ Ignoradas ({len(ignored_musics)})")
+            self.analysis_tree.SetItemBold(ignored_root, True)
+            
+            for music in ignored_musics:
+                music_name = os.path.basename(music['path'])
+                music_item = self.analysis_tree.AppendItem(ignored_root, f"❌ {music_name}")
+                self.analysis_tree.SetItemData(music_item, music['id'])
+        
+        # Expandir apenas a seção "Em Análise"
+        self.analysis_tree.Expand(analysis_root)
 
-        # Atualizar ranking usando ordenação topológica
+    def update_ranking_list(self):
+        """Atualiza a lista de ranking."""
         self.ranking_list.DeleteAllItems()
         ranked_musics = self.controller.get_classified_musics_topological()
         for position, music in enumerate(ranked_musics, 1):
@@ -304,6 +308,12 @@ class MusicApp(wx.Frame):
                 self.ranking_list.InsertItem(index, str(position))
                 self.ranking_list.SetItem(index, 1, os.path.basename(music['path']))
                 self.ranking_list.SetItem(index, 2, "★" * music['stars'])
+
+    def update_lists(self):
+        """Atualiza todas as listas - método de compatibilidade."""
+        self.update_analysis_tree()
+        self.update_ranking_list()
+        self.update_status()
 
     def update_status(self):
         """Atualiza a barra de status."""
@@ -314,53 +324,240 @@ class MusicApp(wx.Frame):
         self.statusbar.SetStatusText(f"Classificadas: {rated_musics}", 1)
         self.statusbar.SetStatusText(f"Pastas: {folder_count}", 2)
 
-    def start_comparison(self):
-        """Inicia uma nova comparação."""
-        print("DEBUG: start_comparison method called")
-        try:
-            print("DEBUG: About to call get_next_comparison")
-            print(f"DEBUG: Controller exists: {self.controller is not None}")
-            if not hasattr(self.controller, 'get_next_comparison'):
-                print("DEBUG: Controller missing get_next_comparison method")
-                return
+    def _setup_tree_events(self):
+        """Configura eventos da árvore."""
+        # Clique direito na árvore para menu contextual
+        self.analysis_tree.Bind(wx.EVT_TREE_ITEM_RIGHT_CLICK, self.on_tree_right_click)
+        
+        # Clique direito na lista de ranking para menu contextual
+        self.ranking_list.Bind(wx.EVT_LIST_ITEM_RIGHT_CLICK, self.on_ranking_right_click)
+
+    def start_auto_comparison(self):
+        """Inicia comparação automática - chamado na inicialização."""
+        # Verificar se há músicas para classificar antes de tentar iniciar
+        unrated_count = self.controller.get_unrated_musics_count()
+        if unrated_count > 0:
+            self.start_comparison()
+        else:
+            # Atualizar interface para mostrar que não há músicas
+            self.comparison_title.SetLabel("🎵 Adicione músicas para começar a classificar")
+            self.song_a_name.SetLabel("")
+            self.song_b_name.SetLabel("")
+            self.song_a_button.Enable(False)
+            self.song_b_button.Enable(False)
+            self.skip_a_button.Enable(False)
+            self.skip_b_button.Enable(False)
+
+    def on_tree_right_click(self, event):
+        """Handle right-click no item da árvore."""
+        item = event.GetItem()
+        if not item.IsOk():
+            return
+        
+        # Verificar seleções múltiplas
+        selected_items = self.analysis_tree.GetSelections()
+        if not selected_items:
+            selected_items = [item]
+        
+        # Filtrar apenas itens que são músicas (têm ID)
+        music_items = []
+        for sel_item in selected_items:
+            music_id = self.analysis_tree.GetItemData(sel_item)
+            if music_id:
+                music_items.append((sel_item, music_id))
+        
+        if not music_items:
+            return
+        
+        # Criar menu contextual
+        menu = wx.Menu()
+        
+        if len(music_items) == 1:
+            # Menu para uma música
+            item_text = self.analysis_tree.GetItemText(music_items[0][0])
+            if item_text.startswith("❌"):
+                # Música ignorada - opção para restaurar
+                restore_item = menu.Append(wx.ID_ANY, "Restaurar para Análise")
+                self.Bind(wx.EVT_MENU, lambda evt: self.on_restore_music(music_items[0][1]), restore_item)
+            else:
+                # Música em análise - opção para ignorar
+                ignore_item = menu.Append(wx.ID_ANY, "Ignorar Permanentemente")
+                self.Bind(wx.EVT_MENU, lambda evt: self.on_ignore_music_from_tree(music_items[0][1]), ignore_item)
+        else:
+            # Menu para múltiplas músicas
+            # Verificar se todas são ignoradas ou em análise
+            all_ignored = all(self.analysis_tree.GetItemText(item).startswith("❌") for item, _ in music_items)
+            all_in_analysis = all(not self.analysis_tree.GetItemText(item).startswith("❌") for item, _ in music_items)
             
-            try:
-                state = self.controller.get_next_comparison()
-                print(f"DEBUG: get_next_comparison returned: {state}")
-            except Exception as e:
-                print(f"DEBUG: Exception in get_next_comparison: {e}")
-                import traceback
-                traceback.print_exc()
-                wx.MessageBox(
-                    f'Erro interno: {str(e)}',
-                    'Erro',
-                    wx.OK | wx.ICON_ERROR
-                )
-                return
+            if all_ignored:
+                restore_item = menu.Append(wx.ID_ANY, f"Restaurar {len(music_items)} Músicas")
+                self.Bind(wx.EVT_MENU, lambda evt: self.on_restore_multiple_musics([music_id for _, music_id in music_items]), restore_item)
+            elif all_in_analysis:
+                ignore_item = menu.Append(wx.ID_ANY, f"Ignorar {len(music_items)} Músicas")
+                self.Bind(wx.EVT_MENU, lambda evt: self.on_ignore_multiple_musics([music_id for _, music_id in music_items]), ignore_item)
+            else:
+                # Mista - oferecer ambas opções
+                ignore_analysis = [music_id for item, music_id in music_items if not self.analysis_tree.GetItemText(item).startswith("❌")]
+                restore_ignored = [music_id for item, music_id in music_items if self.analysis_tree.GetItemText(item).startswith("❌")]
+                
+                if ignore_analysis:
+                    ignore_item = menu.Append(wx.ID_ANY, f"Ignorar {len(ignore_analysis)} em Análise")
+                    self.Bind(wx.EVT_MENU, lambda evt: self.on_ignore_multiple_musics(ignore_analysis), ignore_item)
+                
+                if restore_ignored:
+                    restore_item = menu.Append(wx.ID_ANY, f"Restaurar {len(restore_ignored)} Ignoradas")
+                    self.Bind(wx.EVT_MENU, lambda evt: self.on_restore_multiple_musics(restore_ignored), restore_item)
+        
+        # Mostrar menu
+        self.PopupMenu(menu)
+        menu.Destroy()
+
+    def on_ignore_music_from_tree(self, music_id):
+        """Ignora uma música selecionada da árvore."""
+        self.controller.skip_music(music_id)
+        
+        # Remover todas as comparações relacionadas a esta música
+        self.controller.comparison_model.remove_comparisons_for_music(music_id)
+        
+        self.update_analysis_tree()
+        self.update_ranking_list()
+        self.update_status()
+
+    def on_ignore_multiple_musics(self, music_ids):
+        """Ignora múltiplas músicas selecionadas."""
+        for music_id in music_ids:
+            self.controller.skip_music(music_id)
+            # Remover todas as comparações relacionadas a esta música
+            self.controller.comparison_model.remove_comparisons_for_music(music_id)
+        
+        self.update_analysis_tree()
+        self.update_ranking_list()
+        self.update_status()
+
+    def on_restore_music(self, music_id):
+        """Restaura uma música ignorada de volta para análise."""
+        # Restaurar música (setar stars = 0)
+        self.controller.music_model.update_stars(music_id, 0)
+        
+        # Remover todas as comparações dessa música para evitar inconsistências
+        self.controller.comparison_model.remove_comparisons_for_music(music_id)
+        
+        # Limpar estado de comparação para forçar nova busca
+        self.controller.comparison_state_model.clear_comparison_state()
+        
+        self.update_analysis_tree()
+        self.update_ranking_list()
+        self.update_status()
+        
+        # Sempre iniciar comparações automaticamente após restaurar
+        wx.CallAfter(self.start_comparison)
+
+    def on_restore_multiple_musics(self, music_ids):
+        """Restaura múltiplas músicas ignoradas de volta para análise."""
+        for music_id in music_ids:
+            # Restaurar música (setar stars = 0)
+            self.controller.music_model.update_stars(music_id, 0)
+            # Remover todas as comparações dessa música para evitar inconsistências
+            self.controller.comparison_model.remove_comparisons_for_music(music_id)
+        
+        # Limpar estado de comparação para forçar nova busca
+        self.controller.comparison_state_model.clear_comparison_state()
+        
+        self.update_analysis_tree()
+        self.update_ranking_list()
+        self.update_status()
+        
+        # Sempre iniciar comparações automaticamente após restaurar
+        wx.CallAfter(self.start_comparison)
+
+    def on_ranking_right_click(self, event):
+        """Handle right-click na lista de ranking."""
+        item_index = event.GetIndex()
+        if item_index == -1:
+            return
+        
+        # Buscar a música classificada correspondente ao índice
+        ranked_musics = self.controller.get_classified_musics_topological()
+        classified_musics = [music for music in ranked_musics if music['stars'] is not None and music['stars'] > 0]
+        
+        if item_index >= len(classified_musics):
+            return
+        
+        selected_music = classified_musics[item_index]
+        music_id = selected_music['id']
+        music_name = os.path.basename(selected_music['path'])
+        
+        # Criar menu contextual
+        menu = wx.Menu()
+        
+        # Opção para remover da classificação
+        remove_item = menu.Append(wx.ID_ANY, f"Remover '{music_name}' da Classificação")
+        self.Bind(wx.EVT_MENU, lambda evt: self.on_remove_from_ranking(music_id), remove_item)
+        
+        # Opção para ignorar permanentemente
+        ignore_item = menu.Append(wx.ID_ANY, f"Ignorar '{music_name}' Permanentemente")
+        self.Bind(wx.EVT_MENU, lambda evt: self.on_ignore_from_ranking(music_id), ignore_item)
+        
+        # Mostrar menu
+        self.PopupMenu(menu)
+        menu.Destroy()
+
+    def on_remove_from_ranking(self, music_id):
+        """Remove uma música do ranking, voltando ela para análise."""
+        # Zerar as estrelas da música (volta para análise)
+        self.controller.music_model.update_stars(music_id, 0)
+        
+        # Remover todas as comparações relacionadas a esta música
+        self.controller.comparison_model.remove_comparisons_for_music(music_id)
+        
+        # Atualizar interface
+        self.update_analysis_tree()
+        self.update_ranking_list()
+        self.update_status()
+        
+        # Iniciar comparações automaticamente se não há comparação ativa
+        current_state = self.controller.get_current_comparison_state()
+        if not current_state:
+            wx.CallAfter(self.start_comparison)
+
+    def on_ignore_from_ranking(self, music_id):
+        """Ignora uma música do ranking permanentemente."""
+        # Marcar como ignorada (-1)
+        self.controller.skip_music(music_id)
+        
+        # Remover todas as comparações relacionadas a esta música
+        self.controller.comparison_model.remove_comparisons_for_music(music_id)
+        
+        # Atualizar interface
+        self.update_analysis_tree()
+        self.update_ranking_list()
+        self.update_status()
+
+    def start_comparison(self):
+        """Inicia uma nova comparação automaticamente."""
+        try:
+            state = self.controller.get_next_comparison()
+            
             if not state:
-                print("DEBUG: No valid state returned, showing message")
-                self.comparison_panel.Hide()
-                self.panel.Layout()
-                wx.MessageBox(
-                    'Não há mais músicas para comparar!',
-                    'Finalizado',
-                    wx.OK | wx.ICON_INFORMATION
-                )
+                # Não há mais músicas para comparar
+                self.comparison_title.SetLabel("🎉 Todas as músicas foram classificadas!")
+                self.song_a_name.SetLabel("")
+                self.song_b_name.SetLabel("")
+                # Desabilitar botões
+                self.song_a_button.Enable(False)
+                self.song_b_button.Enable(False)
+                self.skip_a_button.Enable(False)
+                self.skip_b_button.Enable(False)
                 return
 
-            print("DEBUG: Valid state found, proceeding with comparison")
+            # Buscar detalhes das músicas
             music_a_id = state['unrated_music_id']
             music_b_id = state['compared_music_id'] 
-            context = state['context']
-            print(f"DEBUG: Getting details for music_a_id={music_a_id}, music_b_id={music_b_id}")
+            
             music_a = self.controller.get_music_details(music_a_id)
             music_b = self.controller.get_music_details(music_b_id)
-            print(f"DEBUG: music_a={music_a}, music_b={music_b}")
             
             if not music_a or not music_b:
-                print("DEBUG: One or both music details are None")
-                self.comparison_panel.Hide()
-                self.panel.Layout()
                 wx.MessageBox(
                     'Erro ao obter detalhes das músicas para comparação.',
                     'Erro',
@@ -368,66 +565,39 @@ class MusicApp(wx.Frame):
                 )
                 return
 
-            print("DEBUG: About to call _update_comparison_ui")
-            self._update_comparison_ui(music_a, music_b, context)
-        except Exception as e:
-            print(f"DEBUG: Exception caught in start_comparison: {e}")
-            import traceback
-            traceback.print_exc()
-            self.comparison_panel.Hide()
+            # Atualizar interface de comparação
+            music_a_name = os.path.basename(music_a['path'])
+            music_b_name = os.path.basename(music_b['path'])
+            
+            self.comparison_title.SetLabel("🆚 Qual música você prefere?")
+            self.song_a_name.SetLabel(music_a_name)
+            self.song_b_name.SetLabel(music_b_name)
+            
+            # Habilitar botões de preferência
+            self.song_a_button.Enable(True)
+            self.song_b_button.Enable(True)
+            
+            # Mostrar botões "Ignorar" apenas se ambas as músicas não têm classificação
+            music_a_unrated = music_a.get('stars', 0) == 0
+            music_b_unrated = music_b.get('stars', 0) == 0
+            
+            self.skip_a_button.Show(music_a_unrated)
+            self.skip_b_button.Show(music_b_unrated)
+            
+            # Habilitar botões "Ignorar" apenas para músicas não classificadas
+            self.skip_a_button.Enable(music_a_unrated)
+            self.skip_b_button.Enable(music_b_unrated)
+            
+            # Força atualização da interface
+            self.comparison_panel.Layout()
             self.panel.Layout()
+            
+        except Exception as e:
             wx.MessageBox(
-                f'Erro na comparação: {str(e)}',
+                f'Erro ao iniciar comparação: {str(e)}',
                 'Erro',
                 wx.OK | wx.ICON_ERROR
             )
-
-    def _update_comparison_ui(self, music_a, music_b, context):
-        """Atualiza a interface de comparação."""
-        print(f"DEBUG: _update_comparison_ui called with context={context}")
-        try:
-            # Atualizar nomes das músicas
-            self.song_a_name.SetLabel(os.path.basename(music_a['path']))
-            self.song_b_name.SetLabel(os.path.basename(music_b['path']))
-            
-            # Mostrar contexto da comparação
-            if context == 'initial':
-                context_text = "Comparação inicial - Qual música você prefere?"
-            elif context == 'refinement':
-                context_text = f"Refinamento - A: {music_a['stars']}⭐ vs B: {music_b['stars']}⭐"
-            else:
-                context_text = "Qual música você prefere?"
-                
-            # Se existe um label de contexto, atualizar (senão criar depois)
-            if hasattr(self, 'context_label'):
-                self.context_label.SetLabel(context_text)
-            
-            # Mostrar botão de skip apenas para músicas não classificadas (stars = 0)
-            # Música A - mostrar skip se não foi classificada
-            self.skip_a_button.Show(music_a['stars'] == 0)
-            buttons_panel_a = self.skip_a_button.GetParent()
-            buttons_panel_a.Layout()
-            
-            # Música B - mostrar skip apenas se não foi classificada
-            self.skip_b_button.Show(music_b['stars'] == 0)
-            buttons_panel_b = self.skip_b_button.GetParent()
-            buttons_panel_b.Layout()
-            
-            print("DEBUG: About to show comparison panel")
-            # Mostrar o painel de comparação
-            self.comparison_panel.Show()
-            self.panel.Layout()
-            self.comparison_panel.Layout()
-            self.comparison_panel.Refresh()
-            self.panel.Layout()
-            self.Layout()
-            print("DEBUG: Comparison panel should be visible now")
-        except Exception as e:
-            print(f"DEBUG: Exception in _update_comparison_ui: {e}")
-            import traceback
-            traceback.print_exc()
-
-
 
     def on_comparison_choice(self, choice):
         """Lida com a escolha do usuário na comparação."""
@@ -437,7 +607,6 @@ class MusicApp(wx.Frame):
 
         music_a_id = state['unrated_music_id']
         music_b_id = state['compared_music_id']
-        context = state['context']
         
         # Determinar o vencedor baseado na escolha
         winner_id = music_a_id if choice == 0 else music_b_id
@@ -445,62 +614,38 @@ class MusicApp(wx.Frame):
         # Registrar a comparação no sistema
         classification_finished = self.controller.make_comparison(music_a_id, music_b_id, winner_id)
         
-        # Finalizar esta comparação (só limpa estado se foi finalizada)
-        self._finalize_comparison(classification_finished)
+        # Finalizar esta comparação e iniciar próxima automaticamente
+        self._finalize_comparison_and_continue()
 
-    def _finalize_comparison(self, classification_finished=True):
-        """Finaliza o processo de comparação."""
-        self.comparison_panel.Hide()
-        self.update_lists()
+    def _finalize_comparison_and_continue(self):
+        """Finaliza comparação atual e inicia próxima automaticamente."""
+        # Atualizar listas e status
+        self.update_analysis_tree()
+        self.update_ranking_list()
         self.update_status()
         
-        # Só limpa o estado se a classificação foi finalizada
-        if classification_finished:
-            self.controller.clear_comparison_state()
+        # Nota: NÃO limpar o estado aqui, pois a busca binária pode continuar
+        # com a mesma música. O controller gerencia o estado internamente.
         
-        self.panel.Layout()
-        
-        # Verificar se há mais músicas para classificar apenas se a classificação foi finalizada
-        if classification_finished:
-            try:
-                next_state = self.controller.get_next_comparison()
-                if next_state:
-                    wx.CallAfter(self.start_comparison)  # Inicia automaticamente a próxima comparação
-                else:
-                    wx.MessageBox('Todas as músicas foram classificadas!', 'Parabéns!', wx.OK | wx.ICON_INFORMATION)
-            except Exception as e:
-                # Se houver erro, assumir que acabaram as músicas
-                wx.MessageBox('Todas as músicas foram classificadas!', 'Parabéns!', wx.OK | wx.ICON_INFORMATION)
-        else:
-            # Se a classificação não foi finalizada (skip), apenas inicia a próxima comparação
-            wx.CallAfter(self.start_comparison)
+        # Iniciar próxima comparação automaticamente
+        wx.CallAfter(self.start_comparison)
 
     def on_add_folder(self, event):
         """Abre o diálogo para adicionar uma pasta de músicas."""
         with wx.DirDialog(self, "Selecione uma pasta de músicas") as dlg:
             if dlg.ShowModal() == wx.ID_OK:
-                self.controller.add_music_folder(dlg.GetPath())
-                self.update_lists()
+                added_count = self.controller.add_music_folder(dlg.GetPath())
+                self.update_analysis_tree()
+                self.update_ranking_list()
                 self.update_status()
-
-    def on_start_comparison(self, event):
-        """Inicia o processo de classificação por busca binária."""
-        print("DEBUG: on_start_comparison button clicked")
-        self.start_comparison()
-
-    def on_stop_comparison(self, event):
-        """Para o processo de comparação atual, mas mantém o progresso."""
-        self.comparison_panel.Hide()
-        self.update_lists()
-        self.update_status()
-        # Pausar comparação (manter progresso) em vez de limpar completamente
-        self.controller.pause_comparison()
-        self.panel.Layout()
-        self.main_splitter.Layout()
+                
+                # Se foram adicionadas músicas, iniciar comparações automaticamente
+                if added_count > 0:
+                    wx.CallAfter(self.start_comparison)
 
     def on_skip_music(self, index):
         """
-        Pula uma das músicas em comparação e avança para a próxima.
+        Pula uma das músicas em comparação e avança para a próxima automaticamente.
         :param index: 0 para música A, 1 para música B
         """
         state = self.controller.get_current_comparison_state()
@@ -509,17 +654,13 @@ class MusicApp(wx.Frame):
 
         music_a_id = state['unrated_music_id']
         music_b_id = state['compared_music_id'] 
-        context = state['context']
         music_id = music_a_id if index == 0 else music_b_id
             
-        # Marcar a música como pulada (-1 estrelas)
+        # Marcar a música como ignorada (-1 estrelas)
         self.controller.skip_music(music_id)
             
-        # Limpar o estado atual de comparação para permitir nova busca
-        self.controller.clear_comparison_state()
-        
-        # Avançar para próxima comparação (não limpar estado novamente)
-        self._finalize_comparison(classification_finished=False)
+        # Limpar o estado atual e avançar automaticamente
+        self._finalize_comparison_and_continue()
 
     def on_view_folders(self, event):
         """Mostra um diálogo com as pastas adicionadas."""

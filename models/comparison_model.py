@@ -28,3 +28,14 @@ class ComparisonModel:
         cursor = self.conn.cursor()
         cursor.execute('SELECT music_a_id, music_b_id, winner_id FROM comparisons')
         return cursor.fetchall()
+
+    def remove_comparisons_for_music(self, music_id):
+        """
+        Remove todas as comparações que envolvem uma música específica.
+        """
+        cursor = self.conn.cursor()
+        cursor.execute('''
+            DELETE FROM comparisons 
+            WHERE music_a_id = ? OR music_b_id = ?
+        ''', (music_id, music_id))
+        self.conn.commit()

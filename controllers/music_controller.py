@@ -642,3 +642,21 @@ class MusicController:
 
     def get_all_music(self):
         return self.music_model.get_all_classified_musics()
+
+    def get_unrated_musics_by_folder(self):
+        """Retorna músicas não classificadas organizadas por pasta."""
+        unrated_musics = self.music_model.get_unrated_musics()
+        
+        # Organizar por pasta
+        folders_dict = {}
+        for music in unrated_musics:
+            folder_path = os.path.dirname(music['path'])
+            if folder_path not in folders_dict:
+                folders_dict[folder_path] = []
+            folders_dict[folder_path].append(music)
+        
+        return folders_dict
+
+    def get_ignored_musics(self):
+        """Retorna músicas ignoradas (stars = -1)."""
+        return self.music_model.get_ignored_musics()

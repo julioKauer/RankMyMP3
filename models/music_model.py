@@ -32,6 +32,18 @@ class MusicModel:
         
         return music_list
 
+    def get_ignored_musics(self):
+        """
+        Retorna músicas ignoradas (stars = -1).
+        """
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT id, path, stars FROM music WHERE stars = -1')
+        results = cursor.fetchall()
+        
+        music_list = [{'id': row[0], 'path': row[1], 'stars': row[2]} for row in results]
+        
+        return music_list
+
     def get_two_unrated_musics(self):
         """
         Retorna duas músicas não classificadas diferentes para comparação inicial.
