@@ -72,6 +72,14 @@ Thumbs.db
 *.pyd
 *.pdb
 
+# Coverage reports
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+.pytest_cache/
+
 # Config files
 *.ini
 *.cfg

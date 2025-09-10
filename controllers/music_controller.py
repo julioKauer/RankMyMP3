@@ -7,17 +7,28 @@ from models.comparison_state_model import ComparisonStateModel
 from models.folder_model import FolderModel
 
 class MusicController:
-    def __init__(self, conn: Connection):
+    def __init__(self, conn_or_path):
         """
         Inicializa o controlador de música.
-        :param conn: Conexão com o banco de dados.
+        :param conn_or_path: Conexão com o banco de dados ou caminho para o banco.
         """
-        self.conn = conn
+        if isinstance(conn_or_path, str):
+            # É um caminho para o banco
+            import sqlite3
+            self.db_path = conn_or_path
+            self.conn = sqlite3.connect(conn_or_path)
+            self.owns_connection = True
+        else:
+            # É uma conexão
+            self.conn = conn_or_path
+            self.db_path = "data/music_ranking.db"  # padrão
+            self.owns_connection = False
+            
         # Inicializar os modelos
-        self.music_model = MusicModel(conn)
-        self.comparison_model = ComparisonModel(conn)
-        self.comparison_state_model = ComparisonStateModel(conn)
-        self.folder_model = FolderModel()
+        self.music_model = MusicModel(self.conn)
+        self.comparison_model = ComparisonModel(self.conn)
+        self.comparison_state_model = ComparisonStateModel(self.conn)
+        self.folder_model = FolderModel(self.db_path)
 
     def add_music_folder(self, folder_path):
         """Adiciona todas as músicas MP3 de uma pasta e salva a pasta no banco."""

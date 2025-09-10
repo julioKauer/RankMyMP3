@@ -11,6 +11,10 @@ class FolderModel:
             cursor.execute("SELECT path FROM folders")
             return [row[0] for row in cursor.fetchall()]
 
+    def get_all_folders(self):
+        """Retrieve all saved folders (alias for get_folders)."""
+        return self.get_folders()
+
     def add_folder(self, folder_path):
         """Add a new folder to the database."""
         with sqlite3.connect(self.db_path) as conn:

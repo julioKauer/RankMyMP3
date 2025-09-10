@@ -56,7 +56,9 @@ class MusicModel:
                 {'id': results[0][0], 'path': results[0][1], 'stars': results[0][2]},
                 {'id': results[1][0], 'path': results[1][1], 'stars': results[1][2]}
             ]
-        return None
+        elif len(results) == 1:
+            return [{'id': results[0][0], 'path': results[0][1], 'stars': results[0][2]}]
+        return []
 
     def get_last_music_with_stars(self, star_level):
         """
