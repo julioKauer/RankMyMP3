@@ -85,13 +85,40 @@ pytest
 pytest --cov=. --cov-report=html
 
 # Ver relatório de cobertura
-open htmlcov/index.html
+open htmlcov/index.html  # Linux/Mac
+start htmlcov/index.html # Windows
 ```
 
 ### Estrutura de testes:
-- **160 testes** cobrindo todo o sistema
-- **92% de cobertura** de código
+- **141 testes** cobrindo todo o sistema
+- **92%+ de cobertura** de código
 - Testes unitários, de integração e edge cases
+- Testes de regressão para bugs conhecidos
+- Testes de workflows completos de usuário
+
+### Tipos de teste:
+- **Unitários**: `tests/test_models/`, `tests/test_controllers/`, `tests/test_utils/`
+- **Integração**: `tests/test_user_workflows.py`
+- **Regressão**: `tests/test_regression_problems.py`
+- **Bug fixes**: `tests/test_bug_fix_validation.py`
+
+### Comandos úteis:
+```bash
+# Executar apenas um arquivo de teste
+pytest tests/test_models/test_music_model.py
+
+# Executar com verbosidade
+pytest -v
+
+# Executar testes específicos por nome
+pytest -k "test_binary_search"
+
+# Gerar relatório de cobertura em texto
+pytest --cov=. --cov-report=term-missing
+
+# Limpar cache de testes
+pytest --cache-clear
+```
 │   └── file_operations.py     # Operações de arquivo
 ├── data/                 # Banco de dados
 │   └── music_ranking.db       # SQLite database

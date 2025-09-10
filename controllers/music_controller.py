@@ -202,57 +202,80 @@ class MusicController:
         # Calcular posição atual mid para referência
         current_mid = (low + high) // 2
         
-        # Determinar nova posição baseada no resultado
-        ranking = self._build_ranking_from_comparisons(exclude_music_id=new_music_id)
-        
+        # Atualizar intervalo baseado no resultado
         if winner_id == new_music_id:
             # Nova música é melhor - buscar na metade ANTES (posições menores)
-            new_high = current_mid - 1
-            print(f"DEBUG: New music wins - searching before, new range [{low}, {new_high}]")
+            high = current_mid - 1
+            print(f"DEBUG: New music wins - searching before, new range [{low}, {high}]")
         else:
             # Música existente é melhor - buscar na metade DEPOIS (posições maiores)
-            new_low = current_mid + 1
-            print(f"DEBUG: Existing music wins - searching after, new range [{new_low}, {high}]")
-            low = new_low
-            
-        if winner_id == new_music_id:
-            high = new_high
+            low = current_mid + 1
+            print(f"DEBUG: Existing music wins - searching after, new range [{low}, {high}]")
             
         comparisons += 1
         
-        # Verificar se encontrou a posição ou precisa continuar
-        if low > high or comparisons >= 5:  # Máximo 5 comparações ou intervalo inválido
+        # Verificar se encontrou a posição ou atingiu limite
+        if low > high or comparisons >= 5:
             # Finalizar busca - inserir na posição encontrada
             final_position = low
             self._insert_music_at_position(new_music_id, final_position)
             self.comparison_state_model.clear_comparison_state()
             print(f"DEBUG: Binary search complete - inserted at position {final_position} after {comparisons} comparisons")
             return True
-        else:
-            # Continuar busca - próxima comparação
+        
+        # Continuar busca - preparar próxima comparação
+        ranking = self._build_ranking_from_comparisons(exclude_music_id=new_music_id)
+        mid = (low + high) // 2
+        
+        if mid >= len(ranking):
+            # Inserir no final
+            self._insert_music_at_position(new_music_id, len(ranking))
+            self.comparison_state_model.clear_comparison_state()
+            print(f"DEBUG: Inserting at end - position {len(ranking)}")
+            return True
+        
+        next_compare_id = ranking[mid]
+        
+        # Verificar se já temos resultado para esta comparação
+        existing_result = self._get_existing_comparison(new_music_id, next_compare_id)
+        if existing_result is not None:
+            print(f"DEBUG: Found existing comparison {new_music_id} vs {next_compare_id}, winner: {existing_result}")
+            
+            # Processar resultado existente sem recursão
+            if existing_result == new_music_id:
+                high = mid - 1
+                print(f"DEBUG: Using existing - new music wins, range becomes [{low}, {high}]")
+            else:
+                low = mid + 1
+                print(f"DEBUG: Using existing - existing music wins, range becomes [{low}, {high}]")
+            
+            comparisons += 1
+            
+            # Verificar se terminou após usar resultado existente
+            if low > high or comparisons >= 5:
+                final_position = low
+                self._insert_music_at_position(new_music_id, final_position)
+                self.comparison_state_model.clear_comparison_state()
+                print(f"DEBUG: Search complete after using existing - position {final_position}")
+                return True
+            
+            # Preparar próxima comparação com novo intervalo
             ranking = self._build_ranking_from_comparisons(exclude_music_id=new_music_id)
             mid = (low + high) // 2
             
-            if mid < len(ranking):
-                next_compare_id = ranking[mid]
-                
-                # Verificar se já fizemos esta comparação antes (prevenir loops)
-                existing_result = self._get_existing_comparison(new_music_id, next_compare_id)
-                if existing_result is not None:
-                    print(f"DEBUG: Using existing comparison result between {new_music_id} and {next_compare_id}: winner={existing_result}")
-                    # Usar resultado existente diretamente
-                    return self._process_binary_search_step(existing_result)
-                
-                new_context = f"binary_search_{low}_{high}_{comparisons}"
-                self.comparison_state_model.save_comparison_state(new_music_id, next_compare_id, new_context)
-                print(f"DEBUG: Next comparison needed - mid position {mid}, comparing with music {next_compare_id}")
-                return False  # Precisa de mais comparações
-            else:
-                # Inserir no final
+            if mid >= len(ranking):
                 self._insert_music_at_position(new_music_id, len(ranking))
                 self.comparison_state_model.clear_comparison_state()
-                print(f"DEBUG: Inserting at end - position {len(ranking)}")
+                print(f"DEBUG: Inserting at end after existing - position {len(ranking)}")
                 return True
+            
+            next_compare_id = ranking[mid]
+        
+        # Salvar estado para próxima comparação
+        new_context = f"binary_search_{low}_{high}_{comparisons}"
+        self.comparison_state_model.save_comparison_state(new_music_id, next_compare_id, new_context)
+        print(f"DEBUG: Next comparison needed - mid position {mid}, comparing with music {next_compare_id}")
+        return False  # Precisa de mais comparações
 
     def _insert_music_at_position(self, music_id, position):
         """
@@ -425,16 +448,9 @@ class MusicController:
             # Usar _insert_music_at_position para garantir consistência
             self._insert_music_at_position(new_music_id, 0)
             
-            # Buscar próxima música não classificada
-            unrated_music = self.music_model.get_unrated_musics()
-            if unrated_music:
-                next_unrated = unrated_music[0]
-                next_music_id = next_unrated['id']
-                print(f"DEBUG: Starting binary search for next music {next_music_id}")
-                return self._start_binary_search(next_music_id)
-            else:
-                print(f"DEBUG: No more unrated music")
-                return None
+            # NÃO CHAMAR RECURSIVAMENTE! Retornar None e deixar o loop principal continuar
+            print(f"DEBUG: Music inserted, returning None to let main loop continue")
+            return None
             
         # Iniciar busca binária
         low = 0

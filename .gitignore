@@ -22,19 +22,13 @@ ENV/
 # Distribution / packaging
 build/
 
-# Arquivos de teste e debug específicos do projeto
-test_*.py
+# Arquivos temporários e de debug específicos do projeto (NÃO arquivos de teste oficiais)
 debug_*.py
-*_test.py
-*_debug.py
 temp_*.py
 *_backup.py
 *_old.py
 *_broken.py
-*_new.py
 migrate_*.py
-system_test.py
-final_*.py
 
 # Arquivos temporários do sistema
 .DS_Store

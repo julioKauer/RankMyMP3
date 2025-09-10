@@ -414,25 +414,67 @@ class MusicApp(wx.Frame):
 
     def on_ignore_music_from_tree(self, music_id):
         """Ignora uma música selecionada da árvore."""
+        # Verificar se esta música está em comparação ativa
+        current_state = self.controller.get_comparison_state()
+        music_in_active_comparison = False
+        
+        if current_state:
+            unrated_id = current_state.get('unrated_music_id')
+            compared_id = current_state.get('compared_music_id')
+            
+            if music_id == unrated_id or music_id == compared_id:
+                music_in_active_comparison = True
+                print(f"DEBUG: Música {music_id} está em comparação ativa - limpando estado")
+        
         self.controller.skip_music(music_id)
         
         # Remover todas as comparações relacionadas a esta música
         self.controller.comparison_model.remove_comparisons_for_music(music_id)
         
+        # Se estava em comparação ativa, limpar estado e ir para próxima
+        if music_in_active_comparison:
+            self.controller.comparison_state_model.clear_comparison_state()
+            print(f"DEBUG: Estado de comparação limpo - procurando próxima")
+        
         self.update_analysis_tree()
         self.update_ranking_list()
         self.update_status()
+        
+        # Se estava em comparação ativa, iniciar próxima automaticamente
+        if music_in_active_comparison:
+            wx.CallAfter(self.start_comparison)
 
     def on_ignore_multiple_musics(self, music_ids):
         """Ignora múltiplas músicas selecionadas."""
+        # Verificar se alguma música está em comparação ativa
+        current_state = self.controller.get_comparison_state()
+        comparison_affected = False
+        
+        if current_state:
+            unrated_id = current_state.get('unrated_music_id')
+            compared_id = current_state.get('compared_music_id')
+            
+            if unrated_id in music_ids or compared_id in music_ids:
+                comparison_affected = True
+                print(f"DEBUG: Uma das músicas ignoradas estava em comparação ativa - limpando estado")
+        
         for music_id in music_ids:
             self.controller.skip_music(music_id)
             # Remover todas as comparações relacionadas a esta música
             self.controller.comparison_model.remove_comparisons_for_music(music_id)
         
+        # Se alguma música estava em comparação ativa, limpar estado
+        if comparison_affected:
+            self.controller.comparison_state_model.clear_comparison_state()
+            print(f"DEBUG: Estado de comparação limpo após ignorar múltiplas músicas")
+        
         self.update_analysis_tree()
         self.update_ranking_list()
         self.update_status()
+        
+        # Se comparação foi afetada, iniciar próxima automaticamente
+        if comparison_affected:
+            wx.CallAfter(self.start_comparison)
 
     def on_restore_music(self, music_id):
         """Restaura uma música ignorada de volta para análise."""
@@ -522,16 +564,37 @@ class MusicApp(wx.Frame):
 
     def on_ignore_from_ranking(self, music_id):
         """Ignora uma música do ranking permanentemente."""
+        # Verificar se esta música está em comparação ativa
+        current_state = self.controller.get_comparison_state()
+        music_in_active_comparison = False
+        
+        if current_state:
+            unrated_id = current_state.get('unrated_music_id')
+            compared_id = current_state.get('compared_music_id')
+            
+            if music_id == unrated_id or music_id == compared_id:
+                music_in_active_comparison = True
+                print(f"DEBUG: Música {music_id} ignorada do ranking estava em comparação ativa")
+        
         # Marcar como ignorada (-1)
         self.controller.skip_music(music_id)
         
         # Remover todas as comparações relacionadas a esta música
         self.controller.comparison_model.remove_comparisons_for_music(music_id)
         
+        # Se estava em comparação ativa, limpar estado
+        if music_in_active_comparison:
+            self.controller.comparison_state_model.clear_comparison_state()
+            print(f"DEBUG: Estado de comparação limpo após ignorar do ranking")
+        
         # Atualizar interface
         self.update_analysis_tree()
         self.update_ranking_list()
         self.update_status()
+        
+        # Se estava em comparação ativa, iniciar próxima automaticamente
+        if music_in_active_comparison:
+            wx.CallAfter(self.start_comparison)
 
     def start_comparison(self):
         """Inicia uma nova comparação automaticamente."""
