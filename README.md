@@ -28,6 +28,70 @@ RankMyMP3/
 │   └── music_app.py           # Interface principal
 ├── utils/                # Utilitários
 │   ├── database_initializer.py # Inicialização do banco
+│   └── file_operations.py      # Operações de arquivo
+├── tests/                # Testes unitários (92% cobertura)
+│   ├── test_controllers/     # Testes dos controllers
+│   ├── test_models/          # Testes dos models
+│   └── test_utils/           # Testes dos utilitários
+├── data/                 # Banco de dados
+└── main.py              # Ponto de entrada
+```
+
+## 🛠️ Instalação
+
+### Pré-requisitos
+- Python 3.8+
+- pip
+
+### Passos
+
+1. **Clone o repositório**:
+```bash
+git clone https://github.com/seu-usuario/RankMyMP3.git
+cd RankMyMP3
+```
+
+2. **Crie um ambiente virtual** (recomendado):
+```bash
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# ou
+venv\Scripts\activate     # Windows
+```
+
+3. **Instale as dependências**:
+```bash
+pip install -r requirements.txt
+```
+
+4. **Execute o programa**:
+```bash
+python main.py
+```
+
+## 🧪 Desenvolvimento
+
+### Instalar dependências de desenvolvimento:
+```bash
+pip install -r requirements-dev.txt
+```
+
+### Executar testes:
+```bash
+# Executar todos os testes
+pytest
+
+# Executar com cobertura
+pytest --cov=. --cov-report=html
+
+# Ver relatório de cobertura
+open htmlcov/index.html
+```
+
+### Estrutura de testes:
+- **160 testes** cobrindo todo o sistema
+- **92% de cobertura** de código
+- Testes unitários, de integração e edge cases
 │   └── file_operations.py     # Operações de arquivo
 ├── data/                 # Banco de dados
 │   └── music_ranking.db       # SQLite database

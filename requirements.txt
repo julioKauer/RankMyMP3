@@ -1,0 +1,23 @@
+# RankMyMP3 - Sistema de Ranking de Músicas por Comparações
+# Dependências do projeto
+
+# Interface gráfica
+wxPython>=4.2.0
+
+# Operações de arquivo seguras (lixeira)
+send2trash>=1.8.0
+
+# Testes e cobertura de código
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-mock>=3.11.0
+
+# Bibliotecas padrão do Python (não precisam ser instaladas)
+# - sqlite3 (incluído no Python)
+# - os (incluído no Python)
+# - pathlib (incluído no Python)
+# - collections (incluído no Python)
+# - tempfile (incluído no Python)
+# - shutil (incluído no Python)
+# - sys (incluído no Python)
+# - unittest (incluído no Python)
