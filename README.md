@@ -31,9 +31,10 @@ Sistema inteligente de ranking de músicas usando comparações diretas e busca 
 ### 📁 Navegação de Arquivos
 - **Mostrar Caminho**: Veja o caminho completo de qualquer música
 - **Abrir Pasta**: Acesse a pasta da música no explorador de arquivos
+- **Reproduzir Música**: Abra a música no player padrão do sistema
 - **Mover Música**: Mova arquivos para outras pastas e atualize o banco automaticamente
 - **Multiplataforma**: Funciona no Windows, macOS e Linux
-- **Integração Nativa**: Usa o gerenciador de arquivos padrão do sistema
+- **Integração Nativa**: Usa o gerenciador de arquivos e player padrão do sistema
 
 ### 🎛️ Interface Completa
 - **Árvore de Análise**: Visualize músicas por pasta e status
@@ -149,7 +150,8 @@ python main.py
 ### 📁 Navegação de Arquivos
 - **Ver Caminho**: Clique direito → "📁 Mostrar Caminho"
 - **Abrir Pasta**: Clique direito → "🗂️ Abrir Pasta"
-- **Funciona em**: Windows (Explorer), macOS (Finder), Linux (gerenciador padrão)
+- **Reproduzir Música**: Clique direito → "🎵 Reproduzir Música"
+- **Funciona em**: Windows (Explorer/Media Player), macOS (Finder/QuickTime), Linux (gerenciador/player padrão)
 
 ### 🔍 Filtros Avançados
 - **Por Estrelas**: Filtre músicas com 5⭐, 4⭐, etc.

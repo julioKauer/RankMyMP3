@@ -1,5 +1,7 @@
 import wx
 import os
+import subprocess
+import platform
 from controllers.music_controller import MusicController
 from utils.window_settings import AppSettings
 
@@ -646,6 +648,9 @@ class MusicApp(wx.Frame):
                 open_folder_item = menu.Append(wx.ID_ANY, "🗂️ Abrir Pasta")
                 self.Bind(wx.EVT_MENU, lambda evt: self.on_open_music_folder(music_path), open_folder_item)
                 
+                play_item = menu.Append(wx.ID_ANY, "🎵 Reproduzir Música")
+                self.Bind(wx.EVT_MENU, lambda evt: self.on_play_music(music_path), play_item)
+                
                 move_item = menu.Append(wx.ID_ANY, "📦 Mover para Pasta...")
                 self.Bind(wx.EVT_MENU, lambda evt: self.on_move_music_file(music_id), move_item)
                 
@@ -826,6 +831,10 @@ class MusicApp(wx.Frame):
         # Opção para abrir pasta no sistema
         open_folder_item = menu.Append(wx.ID_ANY, f"🗂️ Abrir Pasta")
         self.Bind(wx.EVT_MENU, lambda evt: self.on_open_music_folder(selected_music['path']), open_folder_item)
+        
+        # Opção para reproduzir música
+        play_item = menu.Append(wx.ID_ANY, f"🎵 Reproduzir Música")
+        self.Bind(wx.EVT_MENU, lambda evt: self.on_play_music(selected_music['path']), play_item)
         
         # Opção para mover arquivo
         move_item = menu.Append(wx.ID_ANY, f"📦 Mover para Pasta...")
@@ -1379,10 +1388,49 @@ class MusicApp(wx.Frame):
                     "Erro ao abrir pasta",
                     wx.OK | wx.ICON_WARNING
                 )
-        except FileNotFoundError:
+            except FileNotFoundError:
+                wx.MessageBox(
+                    f"Comando não encontrado para abrir pastas no seu sistema.\n\nCaminho da pasta:\n{folder_path}",
+                    "Comando não disponível",
+                    wx.OK | wx.ICON_WARNING
+                )
+
+    def on_play_music(self, music_path):
+        """Abre a música no player padrão do sistema."""
+        # Verificar se o arquivo existe
+        if not os.path.exists(music_path):
             wx.MessageBox(
-                f"Comando não encontrado para abrir pastas no seu sistema.\n\nCaminho da pasta:\n{folder_path}",
-                "Comando não disponível",
+                f"O arquivo de música não foi encontrado:\n{music_path}",
+                "Arquivo não encontrado",
+                wx.OK | wx.ICON_ERROR
+            )
+            return
+        
+        try:
+            # Detectar o sistema operacional e usar o comando apropriado
+            system = platform.system()
+            
+            if system == "Windows":
+                # Windows - usar start para abrir com programa padrão
+                os.startfile(music_path)
+            elif system == "Darwin":  # macOS
+                # macOS - usar open
+                subprocess.run(['open', music_path], check=True)
+            else:  # Linux e outros Unix-like
+                # Linux - usar xdg-open (funciona na maioria das distribuições)
+                subprocess.run(['xdg-open', music_path], check=True)
+                
+        except subprocess.CalledProcessError:
+            # Se falhar, mostrar erro informativo
+            wx.MessageBox(
+                f"Não foi possível abrir a música no player padrão.\n\nArquivo:\n{music_path}\n\nTente abrir manualmente com seu player preferido.",
+                "Erro ao abrir música",
+                wx.OK | wx.ICON_WARNING
+            )
+        except (FileNotFoundError, OSError) as e:
+            wx.MessageBox(
+                f"Comando não encontrado para abrir arquivos de música no seu sistema.\n\nArquivo:\n{music_path}\n\nDetalhes: {str(e)}",
+                "Player não disponível",
                 wx.OK | wx.ICON_WARNING
             )
 

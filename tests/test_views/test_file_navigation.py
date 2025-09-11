@@ -295,3 +295,187 @@ class TestFileNavigationFeatures:
             expected_dir = os.path.dirname(path)
             actual_dir = os.path.dirname(music_details['path'])
             assert actual_dir == expected_dir
+
+    @patch('subprocess.run')
+    def test_play_music_linux_success(self, mock_subprocess, db_connection):
+        """Testa reprodução de música no Linux com sucesso."""
+        from views.music_app import MusicApp
+        
+        import wx
+        app = wx.App(False)
+        
+        try:
+            controller = MusicController(db_connection)
+            music_id = controller.music_model.add_music("/home/user/test.mp3")
+            
+            main_window = MusicApp(controller)
+            
+            # Mock do sistema para Linux
+            with patch('platform.system', return_value='Linux'):
+                with patch('os.path.exists', return_value=True):
+                    # Simular sucesso do xdg-open
+                    mock_subprocess.return_value = None
+                    
+                    # Testar reprodução
+                    main_window.on_play_music("/home/user/test.mp3")
+                    
+                    # Verificar que foi chamado corretamente
+                    mock_subprocess.assert_called_with(['xdg-open', '/home/user/test.mp3'], check=True)
+                    
+        finally:
+            main_window.Destroy()
+            app.Destroy()
+
+    def test_play_music_windows_success(self, db_connection):
+        """Testa reprodução de música no Windows com sucesso."""
+        from views.music_app import MusicApp
+        
+        import wx
+        app = wx.App(False)
+        
+        try:
+            controller = MusicController(db_connection)
+            music_id = controller.music_model.add_music("C:\\Music\\test.mp3")
+            
+            main_window = MusicApp(controller)
+            
+            # Mock do sistema para Windows e da função startfile
+            with patch('platform.system', return_value='Windows'):
+                with patch('os.path.exists', return_value=True):
+                    # Criar mock da função startfile e adicioná-la ao módulo os
+                    mock_startfile = MagicMock()
+                    with patch.object(os, 'startfile', mock_startfile, create=True):
+                        # Testar reprodução
+                        main_window.on_play_music("C:\\Music\\test.mp3")
+                        
+                        # Verificar que foi chamado corretamente
+                        mock_startfile.assert_called_with("C:\\Music\\test.mp3")
+                        
+        finally:
+            main_window.Destroy()
+            app.Destroy()
+
+    @patch('subprocess.run')
+    def test_play_music_macos_success(self, mock_subprocess, db_connection):
+        """Testa reprodução de música no macOS com sucesso."""
+        from views.music_app import MusicApp
+        
+        import wx
+        app = wx.App(False)
+        
+        try:
+            controller = MusicController(db_connection)
+            music_id = controller.music_model.add_music("/Users/user/test.mp3")
+            
+            main_window = MusicApp(controller)
+            
+            # Mock do sistema para macOS
+            with patch('platform.system', return_value='Darwin'):
+                with patch('os.path.exists', return_value=True):
+                    # Simular sucesso do open
+                    mock_subprocess.return_value = None
+                    
+                    # Testar reprodução
+                    main_window.on_play_music("/Users/user/test.mp3")
+                    
+                    # Verificar que foi chamado corretamente
+                    mock_subprocess.assert_called_with(['open', '/Users/user/test.mp3'], check=True)
+                    
+        finally:
+            main_window.Destroy()
+            app.Destroy()
+
+    def test_play_music_nonexistent_file(self, db_connection):
+        """Testa reprodução de arquivo inexistente."""
+        from views.music_app import MusicApp
+        
+        import wx
+        app = wx.App(False)
+        
+        try:
+            controller = MusicController(db_connection)
+            main_window = MusicApp(controller)
+            
+            # Mock para arquivo inexistente
+            with patch('os.path.exists', return_value=False):
+                with patch.object(wx, 'MessageBox') as mock_msgbox:
+                    # Testar reprodução de arquivo inexistente
+                    main_window.on_play_music("/path/to/nonexistent.mp3")
+                    
+                    # Verificar que foi exibida mensagem de erro
+                    mock_msgbox.assert_called_once()
+                    args = mock_msgbox.call_args[0]
+                    assert "não foi encontrado" in args[0].lower()
+                    assert "/path/to/nonexistent.mp3" in args[0]
+                    
+        finally:
+            main_window.Destroy()
+            app.Destroy()
+
+    @patch('subprocess.run')
+    def test_play_music_command_failure(self, mock_subprocess, db_connection):
+        """Testa falha no comando de reprodução."""
+        from views.music_app import MusicApp
+        
+        import wx
+        app = wx.App(False)
+        
+        try:
+            controller = MusicController(db_connection)
+            main_window = MusicApp(controller)
+            
+            # Mock do sistema para Linux
+            with patch('platform.system', return_value='Linux'):
+                with patch('os.path.exists', return_value=True):
+                    # Simular falha do comando
+                    import subprocess
+                    mock_subprocess.side_effect = subprocess.CalledProcessError(1, 'xdg-open')
+                    
+                    with patch.object(wx, 'MessageBox') as mock_msgbox:
+                        # Testar reprodução com falha
+                        main_window.on_play_music("/home/user/test.mp3")
+                        
+                        # Verificar que foi exibida mensagem de erro
+                        mock_msgbox.assert_called_once()
+                        args = mock_msgbox.call_args[0]
+                        assert "não foi possível abrir" in args[0].lower()
+                        assert "/home/user/test.mp3" in args[0]
+                        
+        finally:
+            main_window.Destroy()
+            app.Destroy()
+
+    def test_integration_context_menu_play_functions(self, db_connection):
+        """Testa integração das funções de reprodução com menus contextuais."""
+        from views.music_app import MusicApp
+        
+        import wx
+        app = wx.App(False)
+        
+        try:
+            # Setup
+            controller = MusicController(db_connection)
+            controller.add_music_folder("/home/user/Music")
+            music_id = controller.music_model.add_music("/home/user/Music/test.mp3")
+            
+            main_window = MusicApp(controller)
+            main_window.update_analysis_tree()
+            main_window.update_ranking_list()
+            
+            # Verificar que as funções existem e são callable
+            assert hasattr(main_window, 'on_play_music')
+            assert callable(getattr(main_window, 'on_play_music'))
+            
+            # Mock das dependências de sistema
+            with patch('platform.system', return_value='Linux'):
+                with patch('os.path.exists', return_value=True):
+                    with patch('subprocess.run') as mock_subprocess:
+                        # Testar chamada direta da função
+                        main_window.on_play_music("/home/user/Music/test.mp3")
+                        
+                        # Verificar que o comando foi executado
+                        mock_subprocess.assert_called_with(['xdg-open', '/home/user/Music/test.mp3'], check=True)
+                        
+        finally:
+            main_window.Destroy()
+            app.Destroy()
