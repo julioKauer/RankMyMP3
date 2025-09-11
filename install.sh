@@ -85,13 +85,14 @@ if [ "$SYSTEM" = "Linux" ]; then
 [Desktop Entry]
 Name=RankMyMP3
 Comment=Sistema inteligente de ranking de músicas
-Exec=python3 $PROJECT_DIR/main.py
+Exec=bash -c "cd $PROJECT_DIR && python3 main.py"
 Icon=$PROJECT_DIR/icon.png
 Terminal=false
 Type=Application
 Categories=AudioVideo;Audio;Player;
 Keywords=music;ranking;mp3;audio;
 StartupNotify=true
+Path=$PROJECT_DIR
 EOF
     
     # Tornar o arquivo .desktop executável
