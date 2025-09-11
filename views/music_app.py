@@ -50,7 +50,7 @@ class MusicApp(wx.Frame):
         self.right_panel = wx.Panel(self.main_splitter)
         self.ranking_list = wx.ListCtrl(
             self.right_panel,
-            style=wx.LC_REPORT  # Removido wx.LC_SINGLE_SEL para permitir múltipla seleção
+            style=wx.LC_REPORT  # Voltando com múltipla seleção
         )
         self.ranking_list.InsertColumn(0, "Posição")
         self.ranking_list.InsertColumn(1, "Música")
@@ -61,12 +61,20 @@ class MusicApp(wx.Frame):
         self.ranking_list.SetColumnWidth(2, 100)
         self.ranking_list.SetColumnWidth(3, 200)
 
+        # Configurar cores personalizadas para melhor legibilidade
+        self._setup_list_colors()
+
         # Área de comparação (sempre visível, mas compacta)
         self.comparison_panel = wx.Panel(self.panel)
 
         # Variáveis para manter estado de expansão da árvore
         self.tree_expanded_folders = set()
         self.tree_expanded_sections = set()
+
+        # Timer para reaplicar cores de seleção (temporariamente desabilitado)
+        # self.color_timer = wx.Timer(self)
+        # self.Bind(wx.EVT_TIMER, self.on_color_timer, self.color_timer)
+        # self.color_timer.Start(500)  # Reaplicar a cada 500ms
 
         # Configurar layouts
         self._setup_menu()
@@ -89,6 +97,56 @@ class MusicApp(wx.Frame):
 
         self.Centre()
         self.Show()
+
+    def _setup_list_colors(self):
+        """Configura cores personalizadas para melhor legibilidade das listas."""
+        # Detectar tema do sistema uma vez e cachear
+        self.is_dark_theme = self._detect_dark_theme()
+        
+        # Usar cores do sistema quando possível para melhor integração
+        try:
+            system_highlight_bg = wx.SystemSettings.GetColour(wx.SYS_COLOUR_HIGHLIGHT)
+            system_highlight_text = wx.SystemSettings.GetColour(wx.SYS_COLOUR_HIGHLIGHTTEXT)
+        except:
+            # Fallback se não conseguir obter cores do sistema
+            system_highlight_bg = wx.Colour(0, 120, 215)
+            system_highlight_text = wx.Colour(255, 255, 255)
+        
+        # Configurar ranking_list e analysis_tree (usar cores 100% padrão do sistema)
+        # Não modificar cores para manter aparência nativa
+
+    def _detect_dark_theme(self):
+        """Detecta se o sistema está usando tema escuro."""
+        try:
+            # Método 1: Verificar cor de fundo padrão do sistema
+            system_bg = wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW)
+            # Se a cor de fundo é escura (soma RGB baixa), provavelmente é tema escuro
+            brightness = system_bg.Red() + system_bg.Green() + system_bg.Blue()
+            if brightness < 384:  # 128 * 3 = 384 (meio termo)
+                return True
+            
+            # Método 2: Verificar cor do texto do sistema
+            system_text = wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOWTEXT)
+            text_brightness = system_text.Red() + system_text.Green() + system_text.Blue()
+            # Se o texto é claro, provavelmente é tema escuro
+            if text_brightness > 384:
+                return True
+                
+            return False
+        except:
+            # Se falhar na detecção, assumir tema claro como padrão
+            return False
+
+    def refresh_theme(self):
+        """Força a atualização do tema da interface."""
+        # Re-detectar tema
+        self._setup_list_colors()
+        self._apply_theme_to_panels()
+        # Atualizar listas
+        self.update_ranking_list()
+        self.update_analysis_tree()
+        # Forçar refresh visual
+        self.Refresh()
 
     def _setup_menu(self):
         """Configura o menu da aplicação."""
@@ -534,6 +592,8 @@ class MusicApp(wx.Frame):
                 tags = self.controller.music_model.get_music_tags(music['id'])
                 tags_text = ", ".join(tags) if tags else ""
                 self.ranking_list.SetItem(index, 3, tags_text)
+                
+                # Usar cores padrão do sistema - sem aplicação manual de cores
 
     def update_lists(self):
         """Atualiza todas as listas - método de compatibilidade."""
@@ -557,6 +617,47 @@ class MusicApp(wx.Frame):
         
         # Clique direito na lista de ranking para menu contextual
         self.ranking_list.Bind(wx.EVT_LIST_ITEM_RIGHT_CLICK, self.on_ranking_right_click)
+        
+        # Apenas evento para forçar fonte legível durante seleção
+        self.ranking_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_ranking_item_selected)
+        self.ranking_list.Bind(wx.EVT_LIST_ITEM_DESELECTED, self.on_ranking_item_deselected)
+
+    def on_ranking_item_selected(self, event):
+        """Força apenas cor de fonte legível quando selecionado, mantém fundo nativo."""
+        item_index = event.GetIndex()
+        
+        # Deixar o sistema aplicar suas cores primeiro
+        event.Skip()
+        
+        # Depois forçar apenas cor de fonte preta para legibilidade
+        wx.CallAfter(self._force_readable_text, item_index)
+
+    def _force_readable_text(self, item_index):
+        """Força cor de texto contrastante para garantir legibilidade na seleção."""
+        try:
+            # Se tema escuro, usar branco; se claro, usar preto
+            if self.is_dark_theme:
+                text_color = wx.Colour(255, 255, 255)  # Branco para tema escuro
+            else:
+                text_color = wx.Colour(0, 0, 0)        # Preto para tema claro
+            
+            # Aplicar cor múltiplas vezes para garantir que seja aplicada
+            for _ in range(3):
+                self.ranking_list.SetItemTextColour(item_index, text_color)
+                self.ranking_list.RefreshItem(item_index)
+                wx.SafeYield()
+        except:
+            pass
+
+    def on_ranking_item_deselected(self, event):
+        """Remove cor de fonte forçada quando desselecionado."""
+        item_index = event.GetIndex()
+        
+        # Usar cor de texto padrão do sistema explicitamente
+        default_color = wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOWTEXT)
+        self.ranking_list.SetItemTextColour(item_index, default_color)
+        self.ranking_list.RefreshItem(item_index)
+        event.Skip()
 
     def _setup_window_events(self):
         """Configura eventos da janela."""
