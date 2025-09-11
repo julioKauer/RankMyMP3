@@ -28,3 +28,68 @@ class ComparisonModel:
         cursor = self.conn.cursor()
         cursor.execute('SELECT music_a_id, music_b_id, winner_id FROM comparisons')
         return cursor.fetchall()
+
+    def get_comparison_result(self, music_a_id, music_b_id):
+        """
+        Retorna o resultado de uma comparação específica.
+        Retorna None se não houver comparação entre as músicas.
+        """
+        # Normalizar ordem
+        if music_a_id > music_b_id:
+            music_a_id, music_b_id = music_b_id, music_a_id
+            
+        cursor = self.conn.cursor()
+        cursor.execute('''
+            SELECT winner_id FROM comparisons 
+            WHERE music_a_id = ? AND music_b_id = ?
+        ''', (music_a_id, music_b_id))
+        result = cursor.fetchone()
+        return result[0] if result else None
+
+    def get_all_comparisons_for_music(self, music_id):
+        """
+        Retorna todas as comparações que envolvem uma música específica.
+        """
+        cursor = self.conn.cursor()
+        cursor.execute('''
+            SELECT music_a_id, music_b_id, winner_id FROM comparisons 
+            WHERE music_a_id = ? OR music_b_id = ?
+        ''', (music_id, music_id))
+        return cursor.fetchall()
+
+    def get_defeated_by_music(self, music_id):
+        """
+        Retorna lista de IDs de músicas derrotadas por uma música específica.
+        """
+        cursor = self.conn.cursor()
+        cursor.execute('''
+            SELECT CASE 
+                WHEN music_a_id = ? THEN music_b_id 
+                ELSE music_a_id 
+            END as defeated_id
+            FROM comparisons 
+            WHERE (music_a_id = ? OR music_b_id = ?) AND winner_id = ?
+        ''', (music_id, music_id, music_id, music_id))
+        return [row[0] for row in cursor.fetchall()]
+
+    def get_winners_against_music(self, music_id):
+        """
+        Retorna lista de IDs de músicas que derrotaram uma música específica.
+        """
+        cursor = self.conn.cursor()
+        cursor.execute('''
+            SELECT winner_id FROM comparisons 
+            WHERE (music_a_id = ? OR music_b_id = ?) AND winner_id != ?
+        ''', (music_id, music_id, music_id))
+        return [row[0] for row in cursor.fetchall()]
+
+    def remove_comparisons_for_music(self, music_id):
+        """
+        Remove todas as comparações que envolvem uma música específica.
+        """
+        cursor = self.conn.cursor()
+        cursor.execute('''
+            DELETE FROM comparisons 
+            WHERE music_a_id = ? OR music_b_id = ?
+        ''', (music_id, music_id))
+        self.conn.commit()

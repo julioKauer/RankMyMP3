@@ -1,0 +1,14 @@
+# Dependências de desenvolvimento para RankMyMP3
+# Para instalar: pip install -r requirements-dev.txt
+
+# Dependências principais
+-r requirements.txt
+
+# Ferramentas de desenvolvimento adicionais
+coverage>=7.3.0          # Relatórios de cobertura detalhados
+pytest-html>=3.2.0       # Relatórios HTML dos testes
+pytest-xdist>=3.3.0      # Execução paralela de testes
+black>=23.0.0             # Formatação de código
+flake8>=6.0.0             # Linting de código
+mypy>=1.5.0               # Verificação de tipos
+pre-commit>=3.3.0         # Git hooks para qualidade de código

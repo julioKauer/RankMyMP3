@@ -28,6 +28,97 @@ RankMyMP3/
 │   └── music_app.py           # Interface principal
 ├── utils/                # Utilitários
 │   ├── database_initializer.py # Inicialização do banco
+│   └── file_operations.py      # Operações de arquivo
+├── tests/                # Testes unitários (92% cobertura)
+│   ├── test_controllers/     # Testes dos controllers
+│   ├── test_models/          # Testes dos models
+│   └── test_utils/           # Testes dos utilitários
+├── data/                 # Banco de dados
+└── main.py              # Ponto de entrada
+```
+
+## 🛠️ Instalação
+
+### Pré-requisitos
+- Python 3.8+
+- pip
+
+### Passos
+
+1. **Clone o repositório**:
+```bash
+git clone https://github.com/seu-usuario/RankMyMP3.git
+cd RankMyMP3
+```
+
+2. **Crie um ambiente virtual** (recomendado):
+```bash
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# ou
+venv\Scripts\activate     # Windows
+```
+
+3. **Instale as dependências**:
+```bash
+pip install -r requirements.txt
+```
+
+4. **Execute o programa**:
+```bash
+python main.py
+```
+
+## 🧪 Desenvolvimento
+
+### Instalar dependências de desenvolvimento:
+```bash
+pip install -r requirements-dev.txt
+```
+
+### Executar testes:
+```bash
+# Executar todos os testes
+pytest
+
+# Executar com cobertura
+pytest --cov=. --cov-report=html
+
+# Ver relatório de cobertura
+open htmlcov/index.html  # Linux/Mac
+start htmlcov/index.html # Windows
+```
+
+### Estrutura de testes:
+- **141 testes** cobrindo todo o sistema
+- **92%+ de cobertura** de código
+- Testes unitários, de integração e edge cases
+- Testes de regressão para bugs conhecidos
+- Testes de workflows completos de usuário
+
+### Tipos de teste:
+- **Unitários**: `tests/test_models/`, `tests/test_controllers/`, `tests/test_utils/`
+- **Integração**: `tests/test_user_workflows.py`
+- **Regressão**: `tests/test_regression_problems.py`
+- **Bug fixes**: `tests/test_bug_fix_validation.py`
+
+### Comandos úteis:
+```bash
+# Executar apenas um arquivo de teste
+pytest tests/test_models/test_music_model.py
+
+# Executar com verbosidade
+pytest -v
+
+# Executar testes específicos por nome
+pytest -k "test_binary_search"
+
+# Gerar relatório de cobertura em texto
+pytest --cov=. --cov-report=term-missing
+
+# Limpar cache de testes
+pytest --cache-clear
+```
 │   └── file_operations.py     # Operações de arquivo
 ├── data/                 # Banco de dados
 │   └── music_ranking.db       # SQLite database
