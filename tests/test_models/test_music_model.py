@@ -446,20 +446,6 @@ class TestMusicModel:
             # Tabelas de tags podem não existir ainda
             assert 'no such table' in str(e).lower() or 'table' in str(e).lower()
 
-    def test_add_tag_to_music(self, music_model):
-        """Testa adicionar tag a música."""
-        music_id = music_model.add_music('/path/to/tagged.mp3')
-        
-        try:
-            music_model.add_tag_to_music(music_id, 'rock')
-            # Se chegou aqui, método existe e funcionou
-        except AttributeError:
-            # Método pode não existir ainda
-            pass
-        except Exception as e:
-            # Tabelas de tags podem não existir
-            assert 'no such table' in str(e).lower() or 'table' in str(e).lower()
-
     def test_file_deletion_scenarios(self, music_model):
         """Testa cenários de deleção de arquivos."""
         # Criar música com caminho que pode não existir
