@@ -11,7 +11,7 @@ Sistema inteligente de ranking de músicas usando comparações diretas e busca 
 ## �📋 Características
 
 - **Ranking por comparações**: Sistema baseado em comparações diretas entre músicas
-- **Busca binária inteligente**: Classificação eficiente com máximo de log₂(n) comparações por música
+- **Busca binária inteligente**: Classificação eficiente com limite de 5 comparações por música
 - **Redistribuição automática**: Sistema de estrelas (1-5) redistribuído automaticamente
 - **Interface amigável**: Interface gráfica wxPython simples e intuitiva
 ## 🎵 Funcionalidades Principais
@@ -258,8 +258,9 @@ pytest --cache-clear
 
 ### Busca Binária Inteligente
 - Nova música é inserida no ranking usando busca binária
-- **Máximo log₂(n) comparações** por música (eficiente para milhares de músicas)
+- **Limite de 5 comparações** por música (proteção contra loops infinitos)
 - Posicionamento preciso baseado em comparações diretas
+- **Configuração futura**: Limite será configurável em versões futuras
 
 ### Sistema de Estrelas
 - Estrelas são apenas **visualização** do ranking real
@@ -283,12 +284,25 @@ O sistema usa SQLite com 4 tabelas principais:
 
 ## 📊 Escalabilidade
 
-- ✅ **100 músicas**: ~7 comparações por música
-- ✅ **1.000 músicas**: ~10 comparações por música  
-- ✅ **10.000 músicas**: ~14 comparações por música
-- ✅ **100.000 músicas**: ~17 comparações por música
+- ✅ **Coleções pequenas**: Busca binária ideal com até 5 comparações
+- ✅ **Coleções médias**: Sistema adaptativo para rankings de centenas de músicas  
+- ✅ **Coleções grandes**: Algoritmo otimizado para qualquer quantidade
+- ⚙️ **Configuração futura**: Limite de comparações será configurável
 
-**Complexidade**: O(log n) por música → Sistema escala para qualquer quantidade de músicas!
+**Complexidade**: O(log n) por música, limitado a 5 comparações para proteção contra loops infinitos.
+
+## ⚙️ Limitações Atuais e Roadmap
+
+### 🚧 Limitações
+- **Busca Binária**: Limitada a 5 comparações por música (hardcoded)
+- **Motivo**: Proteção contra loops infinitos em casos extremos
+- **Impacto**: Pode não encontrar posição ideal em coleções muito grandes
+
+### 🛣️ Roadmap
+- [ ] **Configuração de Limites**: Tornar o limite de comparações configurável pelo usuário
+- [ ] **Algoritmo Adaptativo**: Ajustar limite automaticamente baseado no tamanho da coleção
+- [ ] **Busca Híbrida**: Combinar busca binária com outros algoritmos de ordenação
+- [ ] **Análise de Performance**: Métricas detalhadas sobre eficiência das comparações
 
 ---
 
