@@ -59,6 +59,10 @@ class MusicApp(wx.Frame):
         # Área de comparação (sempre visível, mas compacta)
         self.comparison_panel = wx.Panel(self.panel)
 
+        # Variáveis para manter estado de expansão da árvore
+        self.tree_expanded_folders = set()
+        self.tree_expanded_sections = set()
+
         # Configurar layouts
         self._setup_menu()
         self._setup_layouts()
@@ -112,6 +116,11 @@ class MusicApp(wx.Frame):
         # Layout do painel esquerdo (árvore de análise)
         left_sizer = wx.BoxSizer(wx.VERTICAL)
         left_sizer.Add(wx.StaticText(self.left_panel, label="🎵 Em Análise:"), 0, wx.ALL, 5)
+        
+        # Adicionar filtro de texto para músicas em análise
+        self._setup_analysis_filter()
+        left_sizer.Add(self.analysis_filter_panel, 0, wx.EXPAND | wx.ALL, 5)
+        
         left_sizer.Add(self.analysis_tree, 1, wx.EXPAND | wx.ALL, 5)
         self.left_panel.SetSizer(left_sizer)
 
@@ -220,6 +229,33 @@ class MusicApp(wx.Frame):
         self.expand_tags_btn.Bind(wx.EVT_BUTTON, self.on_toggle_tags_panel)
         self.select_all_tags_btn.Bind(wx.EVT_BUTTON, self.on_select_all_tags)
         self.clear_all_tags_btn.Bind(wx.EVT_BUTTON, self.on_clear_all_tags)
+
+    def _setup_analysis_filter(self):
+        """Configura o filtro de texto para músicas em análise."""
+        self.analysis_filter_panel = wx.Panel(self.left_panel)
+        
+        filter_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        
+        # Label e campo de texto
+        filter_sizer.Add(wx.StaticText(self.analysis_filter_panel, label="🔍"), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 3)
+        
+        self.analysis_filter_text = wx.TextCtrl(self.analysis_filter_panel, style=wx.TE_PROCESS_ENTER)
+        self.analysis_filter_text.SetHint("Filtrar por nome da música...")
+        filter_sizer.Add(self.analysis_filter_text, 1, wx.EXPAND | wx.ALL, 3)
+        
+        # Botão para limpar filtro
+        self.clear_analysis_filter_btn = wx.Button(self.analysis_filter_panel, label="❌ Limpar", size=(100, -1))
+        filter_sizer.Add(self.clear_analysis_filter_btn, 0, wx.ALL, 3)
+        
+        self.analysis_filter_panel.SetSizer(filter_sizer)
+        
+        # Inicializar variável de filtro
+        self.analysis_filter_active = ""
+        
+        # Bind eventos
+        self.analysis_filter_text.Bind(wx.EVT_TEXT, self.on_analysis_filter_changed)
+        self.analysis_filter_text.Bind(wx.EVT_TEXT_ENTER, self.on_analysis_filter_changed)
+        self.clear_analysis_filter_btn.Bind(wx.EVT_BUTTON, self.on_clear_analysis_filter)
 
     def _setup_comparison_panel(self):
         """Configura o painel de comparação - sempre visível e compacto."""
@@ -356,20 +392,44 @@ class MusicApp(wx.Frame):
         self.statusbar = self.CreateStatusBar(3)  # 3 seções: músicas, classificadas, pastas
         self.update_status()
 
-    def update_analysis_tree(self):
-        """Atualiza a árvore de análise com músicas organizadas por pasta."""
-        # Salvar estado de expansão das pastas
-        expanded_folders = set()
+    def _save_tree_expansion_state(self):
+        """Salva o estado atual de expansão da árvore nas variáveis de instância."""
         root = self.analysis_tree.GetRootItem()
         if root.IsOk():
-            analysis_root = self.analysis_tree.GetFirstChild(root)[0]
-            if analysis_root.IsOk():
-                folder_item = self.analysis_tree.GetFirstChild(analysis_root)[0]
-                while folder_item.IsOk():
-                    if self.analysis_tree.IsExpanded(folder_item):
-                        folder_name = self.analysis_tree.GetItemText(folder_item)
-                        expanded_folders.add(folder_name)
-                    folder_item = self.analysis_tree.GetNextSibling(folder_item)
+            # Verificar seções principais (Em Análise, Ignoradas)
+            main_section = self.analysis_tree.GetFirstChild(root)[0]
+            while main_section.IsOk():
+                if self.analysis_tree.IsExpanded(main_section):
+                    section_text = self.analysis_tree.GetItemText(main_section)
+                    if section_text.startswith("❌ Ignoradas"):
+                        self.tree_expanded_sections.add("Ignoradas")
+                    elif section_text.startswith("🎵 Em Análise"):
+                        self.tree_expanded_sections.add("Em Análise")
+                        
+                        # Verificar pastas dentro da seção "Em Análise"
+                        folder_item = self.analysis_tree.GetFirstChild(main_section)[0]
+                        while folder_item.IsOk():
+                            if self.analysis_tree.IsExpanded(folder_item):
+                                folder_text = self.analysis_tree.GetItemText(folder_item)
+                                # Extrair apenas o nome da pasta (remover emoji e contagem)
+                                if folder_text.startswith("📁 "):
+                                    folder_name = folder_text[2:].split(" (")[0]  # Remove "📁 " e tudo após " ("
+                                    self.tree_expanded_folders.add(folder_name)
+                            folder_item = self.analysis_tree.GetNextSibling(folder_item)
+                else:
+                    # Se não está expandida, remover do conjunto
+                    section_text = self.analysis_tree.GetItemText(main_section)
+                    if section_text.startswith("❌ Ignoradas"):
+                        self.tree_expanded_sections.discard("Ignoradas")
+                    elif section_text.startswith("🎵 Em Análise"):
+                        self.tree_expanded_sections.discard("Em Análise")
+                
+                main_section = self.analysis_tree.GetNextSibling(main_section)
+
+    def update_analysis_tree(self):
+        """Atualiza a árvore de análise com músicas organizadas por pasta."""
+        # Salvar estado de expansão atual nas variáveis de instância
+        self._save_tree_expansion_state()
         
         # Reconstruir árvore
         self.analysis_tree.DeleteAllItems()
@@ -380,40 +440,64 @@ class MusicApp(wx.Frame):
         # Buscar músicas não classificadas organizadas por pasta
         folders_dict = self.controller.get_unrated_musics_by_folder()
         
+        # Obter filtro de texto atual
+        filter_text = getattr(self, 'analysis_filter_active', '').lower().strip()
+        
         # Adicionar seções principais
         analysis_root = self.analysis_tree.AppendItem(root, "🎵 Em Análise")
         self.analysis_tree.SetItemBold(analysis_root, True)
         
         # Adicionar pastas e músicas
         for folder_path, musics in folders_dict.items():
-            folder_name = os.path.basename(folder_path) or folder_path
-            folder_display_name = f"📁 {folder_name} ({len(musics)} músicas)"
-            folder_item = self.analysis_tree.AppendItem(analysis_root, folder_display_name)
+            # Filtrar músicas se há filtro ativo
+            if filter_text:
+                musics = [m for m in musics if filter_text in os.path.basename(m['path']).lower()]
             
-            # Adicionar músicas da pasta
-            for music in musics:
-                music_name = os.path.basename(music['path'])
-                music_item = self.analysis_tree.AppendItem(folder_item, f"🎵 {music_name}")
-                # Guardar o ID da música no item
-                self.analysis_tree.SetItemData(music_item, music['id'])
-            
-            # Restaurar estado de expansão
-            if folder_display_name in expanded_folders:
-                self.analysis_tree.Expand(folder_item)
+            # Só adicionar pasta se tem músicas (após filtro)
+            if musics:
+                folder_name = os.path.basename(folder_path) or folder_path
+                folder_display_name = f"📁 {folder_name} ({len(musics)} músicas)"
+                folder_item = self.analysis_tree.AppendItem(analysis_root, folder_display_name)
+                
+                # Adicionar músicas da pasta
+                for music in musics:
+                    music_name = os.path.basename(music['path'])
+                    music_item = self.analysis_tree.AppendItem(folder_item, f"🎵 {music_name}")
+                    # Guardar o ID da música no item
+                    self.analysis_tree.SetItemData(music_item, music['id'])
+                
+                # Restaurar estado de expansão usando apenas o nome da pasta
+                if folder_name in self.tree_expanded_folders:
+                    self.analysis_tree.Expand(folder_item)
         
-        # Adicionar seção de ignoradas (colapsada por padrão)
+        # Adicionar seção de ignoradas
         ignored_musics = self.controller.get_ignored_musics()
+        ignored_root = None
         if ignored_musics:
-            ignored_root = self.analysis_tree.AppendItem(root, f"❌ Ignoradas ({len(ignored_musics)})")
-            self.analysis_tree.SetItemBold(ignored_root, True)
+            # Filtrar ignoradas também se há filtro ativo
+            if filter_text:
+                ignored_musics = [m for m in ignored_musics if filter_text in os.path.basename(m['path']).lower()]
             
-            for music in ignored_musics:
-                music_name = os.path.basename(music['path'])
-                music_item = self.analysis_tree.AppendItem(ignored_root, f"❌ {music_name}")
-                self.analysis_tree.SetItemData(music_item, music['id'])
+            if ignored_musics:  # Só mostrar se há músicas ignoradas (após filtro)
+                ignored_root = self.analysis_tree.AppendItem(root, f"❌ Ignoradas ({len(ignored_musics)})")
+                self.analysis_tree.SetItemBold(ignored_root, True)
+                
+                for music in ignored_musics:
+                    music_name = os.path.basename(music['path'])
+                    music_item = self.analysis_tree.AppendItem(ignored_root, f"❌ {music_name}")
+                    self.analysis_tree.SetItemData(music_item, music['id'])
         
-        # Expandir apenas a seção "Em Análise"
-        self.analysis_tree.Expand(analysis_root)
+        # Restaurar estado de expansão das seções
+        if "Em Análise" in self.tree_expanded_sections:
+            self.analysis_tree.Expand(analysis_root)
+        else:
+            # Por padrão, expandir "Em Análise" se não havia estado anterior
+            if not self.tree_expanded_sections:  # Primeira vez
+                self.analysis_tree.Expand(analysis_root)
+                self.tree_expanded_sections.add("Em Análise")
+        
+        if ignored_root and "Ignoradas" in self.tree_expanded_sections:
+            self.analysis_tree.Expand(ignored_root)
 
     def update_ranking_list(self):
         """Atualiza a lista de ranking com filtros aplicados."""
@@ -571,7 +655,12 @@ class MusicApp(wx.Frame):
                 restore_item = menu.Append(wx.ID_ANY, "Restaurar para Análise")
                 self.Bind(wx.EVT_MENU, lambda evt: self.on_restore_music(music_items[0][1]), restore_item)
             else:
-                # Música em análise - opção para ignorar
+                # Música em análise - opções para classificar e ignorar
+                classify_item = menu.Append(wx.ID_ANY, "🎯 Classificar Esta Música Agora")
+                self.Bind(wx.EVT_MENU, lambda evt: self.on_force_classify_music(music_items[0][1]), classify_item)
+                
+                menu.AppendSeparator()
+                
                 ignore_item = menu.Append(wx.ID_ANY, "Ignorar Permanentemente")
                 self.Bind(wx.EVT_MENU, lambda evt: self.on_ignore_music_from_tree(music_items[0][1]), ignore_item)
         else:
@@ -1414,6 +1503,57 @@ class MusicApp(wx.Frame):
             # Mapear índice para número de estrelas (5, 4, 3, 2, 1)
             stars_value = 6 - stars_selection
             return stars_value, stars_value
+
+    # ===================== MÉTODOS PARA FILTRO DE ANÁLISE =====================
+
+    def on_analysis_filter_changed(self, event):
+        """Chamado quando o filtro de análise muda."""
+        self.analysis_filter_active = self.analysis_filter_text.GetValue()
+        self.update_analysis_tree()
+
+    def on_clear_analysis_filter(self, event):
+        """Limpa o filtro de análise."""
+        self.analysis_filter_text.SetValue("")
+        self.analysis_filter_active = ""
+        self.update_analysis_tree()
+
+    # ===================== MÉTODOS PARA CLASSIFICAÇÃO FORÇADA =====================
+
+    def on_force_classify_music(self, music_id):
+        """Força a classificação de uma música específica como próxima comparação."""
+        try:
+            # Obter detalhes da música
+            music_details = self.controller.music_model.get_music_details(music_id)
+            if not music_details:
+                wx.MessageBox("Música não encontrada.", "Erro", wx.OK | wx.ICON_ERROR)
+                return
+            
+            # Verificar se a música já está classificada
+            if music_details.get('stars', 0) > 0:
+                wx.MessageBox("Esta música já está classificada.", "Informação", wx.OK | wx.ICON_INFORMATION)
+                return
+            
+            # Verificar se a música está ignorada
+            if music_details.get('stars', 0) == -1:
+                wx.MessageBox("Esta música está ignorada. Restaure-a primeiro.", "Informação", wx.OK | wx.ICON_INFORMATION)
+                return
+            
+            # Forçar comparação com esta música
+            success = self.controller.force_next_comparison(music_id)
+            
+            if success:
+                # Iniciar comparação imediatamente
+                wx.CallAfter(self.start_comparison)
+                wx.MessageBox(
+                    f"Música '{os.path.basename(music_details['path'])}' será a próxima a ser classificada.",
+                    "Classificação Forçada",
+                    wx.OK | wx.ICON_INFORMATION
+                )
+            else:
+                wx.MessageBox("Não foi possível forçar a classificação desta música.", "Erro", wx.OK | wx.ICON_ERROR)
+                
+        except Exception as e:
+            wx.MessageBox(f"Erro ao forçar classificação: {str(e)}", "Erro", wx.OK | wx.ICON_ERROR)
 
 
 class TagsDialog(wx.Dialog):

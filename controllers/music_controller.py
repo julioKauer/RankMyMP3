@@ -687,3 +687,41 @@ class MusicController:
     def get_ignored_musics(self):
         """Retorna músicas ignoradas (stars = -1)."""
         return self.music_model.get_ignored_musics()
+
+    def force_next_comparison(self, music_id):
+        """
+        Força uma música específica a ser a próxima na comparação.
+        
+        :param music_id: ID da música a ser forçada
+        :return: True se sucesso, False caso contrário
+        """
+        try:
+            # Verificar se a música existe e está disponível para classificação
+            music_details = self.music_model.get_music_details(music_id)
+            if not music_details:
+                print(f"DEBUG: Música {music_id} não encontrada")
+                return False
+            
+            # Verificar se a música não está classificada nem ignorada
+            stars = music_details.get('stars', 0)
+            if stars != 0:
+                print(f"DEBUG: Música {music_id} já tem classificação (stars={stars})")
+                return False
+            
+            # Limpar qualquer estado de comparação anterior
+            self.comparison_state_model.clear_comparison_state()
+            print(f"DEBUG: Forçando classificação da música {music_id}")
+            
+            # Iniciar busca binária para esta música específica
+            comparison_state = self._start_binary_search(music_id)
+            
+            if comparison_state:
+                print(f"DEBUG: Busca binária iniciada para música {music_id}")
+                return True
+            else:
+                print(f"DEBUG: Falha ao iniciar busca binária para música {music_id}")
+                return False
+                
+        except Exception as e:
+            print(f"DEBUG: Erro ao forçar classificação: {e}")
+            return False
