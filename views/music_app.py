@@ -156,7 +156,7 @@ class MusicApp(wx.Frame):
         
         # Botão para expandir/recolher filtro de tags
         self.expand_tags_btn = wx.Button(self.filter_panel, label="🔽 Filtrar por Tags")
-        self.expand_tags_btn.SetMinSize((130, -1))
+        self.expand_tags_btn.SetMinSize((150, -1))
         basic_filter_sizer.Add(self.expand_tags_btn, 0, wx.ALL, 5)
         
         # Contador de filtros ativos (quando recolhido)
@@ -165,7 +165,7 @@ class MusicApp(wx.Frame):
         
         # Botão limpar filtros
         self.clear_filters_btn = wx.Button(self.filter_panel, label="❌ Limpar")
-        self.clear_filters_btn.SetMinSize((80, -1))
+        self.clear_filters_btn.SetMinSize((100, -1))
         basic_filter_sizer.Add(self.clear_filters_btn, 0, wx.ALL, 5)
         
         main_filter_sizer.Add(basic_filter_sizer, 0, wx.EXPAND)
