@@ -40,7 +40,6 @@ migrate_*.py
 test_correction.py
 test_interface_*.py
 test_loop_*.py
-test_multiple_*.py
 test_skip_*.py
 *_new.py
 *_advanced.py

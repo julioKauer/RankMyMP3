@@ -39,7 +39,9 @@ Sistema inteligente de ranking de músicas usando comparações diretas e busca 
 ### 🎛️ Interface Completa
 - **Árvore de Análise**: Visualize músicas por pasta e status
 - **Lista de Ranking**: Veja o ranking final ordenado por estrelas
+- **Múltipla Seleção**: Selecione várias músicas no ranking para operações em lote
 - **Menus Contextuais**: Clique direito para acessar todas as funcionalidades
+- **Menus Adaptativos**: Menu contextual se adapta à seleção única ou múltipla
 - **Filtros em Tempo Real**: Veja resultados instantaneamente
 - **Persistência de Janela**: Tamanho e posição da janela são salvos automaticamente
 
@@ -161,7 +163,9 @@ python main.py
 
 ### ⚡ Dicas de Produtividade
 - **Atalhos**: Use clique direito para acesso rápido
-- **Multi-seleção**: Selecione várias músicas na árvore para operações em lote
+- **Multi-seleção**: Selecione várias músicas no ranking (Ctrl+clique) para operações em lote
+- **Menus Inteligentes**: Menu contextual se adapta automaticamente à seleção única ou múltipla
+- **Operações em Lote**: Remova ou ignore múltiplas músicas de uma vez
 - **Estado Persistente**: Feche e reabra - o progresso é mantido
 - **Skip Inteligente**: Use "Skip" para pular temporariamente durante comparações
 

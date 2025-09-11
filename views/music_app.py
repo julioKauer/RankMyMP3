@@ -2,6 +2,9 @@ import wx
 import os
 import subprocess
 import platform
+import shutil
+import tempfile
+import time
 from controllers.music_controller import MusicController
 from utils.window_settings import AppSettings
 
@@ -47,7 +50,7 @@ class MusicApp(wx.Frame):
         self.right_panel = wx.Panel(self.main_splitter)
         self.ranking_list = wx.ListCtrl(
             self.right_panel,
-            style=wx.LC_REPORT | wx.LC_SINGLE_SEL
+            style=wx.LC_REPORT  # Removido wx.LC_SINGLE_SEL para permitir múltipla seleção
         )
         self.ranking_list.InsertColumn(0, "Posição")
         self.ranking_list.InsertColumn(1, "Música")
@@ -804,7 +807,11 @@ class MusicApp(wx.Frame):
         if item_index == -1:
             return
         
-        # Buscar a música classificada correspondente ao índice
+        # Verificar se há múltipla seleção
+        selected_count = self.ranking_list.GetSelectedItemCount()
+        is_multiple_selection = selected_count > 1
+        
+        # Buscar a música classificada correspondente ao índice clicado
         ranked_musics = self.controller.get_classified_musics_topological()
         classified_musics = [music for music in ranked_musics if music['stars'] is not None and music['stars'] > 0]
         
@@ -818,37 +825,65 @@ class MusicApp(wx.Frame):
         # Criar menu contextual
         menu = wx.Menu()
         
-        # Opção para gerenciar tags
-        tags_item = menu.Append(wx.ID_ANY, f"🏷️ Gerenciar Tags")
-        self.Bind(wx.EVT_MENU, lambda evt: self.on_manage_tags(music_id, music_name), tags_item)
-        
-        menu.AppendSeparator()
-        
-        # Opção para mostrar caminho da música
-        show_path_item = menu.Append(wx.ID_ANY, f"📁 Mostrar Caminho")
-        self.Bind(wx.EVT_MENU, lambda evt: self.on_show_music_path(selected_music['path']), show_path_item)
-        
-        # Opção para abrir pasta no sistema
-        open_folder_item = menu.Append(wx.ID_ANY, f"🗂️ Abrir Pasta")
-        self.Bind(wx.EVT_MENU, lambda evt: self.on_open_music_folder(selected_music['path']), open_folder_item)
-        
-        # Opção para reproduzir música
-        play_item = menu.Append(wx.ID_ANY, f"🎵 Reproduzir Música")
-        self.Bind(wx.EVT_MENU, lambda evt: self.on_play_music(selected_music['path']), play_item)
-        
-        # Opção para mover arquivo
-        move_item = menu.Append(wx.ID_ANY, f"📦 Mover para Pasta...")
-        self.Bind(wx.EVT_MENU, lambda evt: self.on_move_music_file(music_id), move_item)
-        
-        menu.AppendSeparator()
-        
-        # Opção para remover da classificação
-        remove_item = menu.Append(wx.ID_ANY, f"Remover da Classificação")
-        self.Bind(wx.EVT_MENU, lambda evt: self.on_remove_from_ranking(music_id), remove_item)
-        
-        # Opção para ignorar permanentemente
-        ignore_item = menu.Append(wx.ID_ANY, f"Ignorar Permanentemente")
-        self.Bind(wx.EVT_MENU, lambda evt: self.on_ignore_from_ranking(music_id), ignore_item)
+        if is_multiple_selection:
+            # Menu para múltipla seleção - apenas ações em lote
+            selection_item = menu.Append(wx.ID_ANY, f"🔢 {selected_count} músicas selecionadas")
+            selection_item.Enable(False)  # Item informativo, não clicável
+            menu.AppendSeparator()
+            
+            # Ações de arquivo que fazem sentido para múltipla seleção
+            play_multiple_item = menu.Append(wx.ID_ANY, f"🎵 Reproduzir Músicas")
+            self.Bind(wx.EVT_MENU, lambda evt: self.on_create_and_play_playlist_simple(), play_multiple_item)
+            
+            export_playlist_item = menu.Append(wx.ID_ANY, f"💾 Exportar Playlist...")
+            self.Bind(wx.EVT_MENU, lambda evt: self.on_export_selected_playlist(), export_playlist_item)
+            
+            menu.AppendSeparator()
+            
+            copy_multiple_item = menu.Append(wx.ID_ANY, f"📋 Copiar {selected_count} para Pasta...")
+            self.Bind(wx.EVT_MENU, lambda evt: self.on_copy_multiple_music_files(), copy_multiple_item)
+            
+            move_multiple_item = menu.Append(wx.ID_ANY, f"📦 Mover {selected_count} para Pasta...")
+            self.Bind(wx.EVT_MENU, lambda evt: self.on_move_multiple_music_files(), move_multiple_item)
+            
+            menu.AppendSeparator()
+            
+            # Ações de classificação para múltipla seleção
+            remove_item = menu.Append(wx.ID_ANY, f"🗑️ Remover {selected_count} da Classificação")
+            self.Bind(wx.EVT_MENU, lambda evt: self.on_remove_multiple_from_ranking(), remove_item)
+            
+            ignore_item = menu.Append(wx.ID_ANY, f"❌ Ignorar {selected_count} Permanentemente")
+            self.Bind(wx.EVT_MENU, lambda evt: self.on_ignore_multiple_from_ranking(), ignore_item)
+            
+        else:
+            # Menu para seleção única - todas as opções disponíveis
+            # Opção para gerenciar tags
+            tags_item = menu.Append(wx.ID_ANY, f"🏷️ Gerenciar Tags")
+            self.Bind(wx.EVT_MENU, lambda evt: self.on_manage_tags(music_id, music_name), tags_item)
+            
+            menu.AppendSeparator()
+            
+            # Opções de arquivo (só para seleção única)
+            show_path_item = menu.Append(wx.ID_ANY, f"📁 Mostrar Caminho")
+            self.Bind(wx.EVT_MENU, lambda evt: self.on_show_music_path(selected_music['path']), show_path_item)
+            
+            open_folder_item = menu.Append(wx.ID_ANY, f"🗂️ Abrir Pasta")
+            self.Bind(wx.EVT_MENU, lambda evt: self.on_open_music_folder(selected_music['path']), open_folder_item)
+            
+            play_item = menu.Append(wx.ID_ANY, f"🎵 Reproduzir Música")
+            self.Bind(wx.EVT_MENU, lambda evt: self.on_play_music(selected_music['path']), play_item)
+            
+            move_item = menu.Append(wx.ID_ANY, f"📦 Mover para Pasta...")
+            self.Bind(wx.EVT_MENU, lambda evt: self.on_move_music_file(music_id), move_item)
+            
+            menu.AppendSeparator()
+            
+            # Opções de classificação
+            remove_item = menu.Append(wx.ID_ANY, f"🗑️ Remover da Classificação")
+            self.Bind(wx.EVT_MENU, lambda evt: self.on_remove_from_ranking(music_id), remove_item)
+            
+            ignore_item = menu.Append(wx.ID_ANY, f"❌ Ignorar Permanentemente")
+            self.Bind(wx.EVT_MENU, lambda evt: self.on_ignore_from_ranking(music_id), ignore_item)
         
         # Mostrar menu
         self.PopupMenu(menu)
@@ -971,6 +1006,475 @@ class MusicApp(wx.Frame):
                 'Erro',
                 wx.OK | wx.ICON_ERROR
             )
+
+    def on_remove_multiple_from_ranking(self):
+        """Remove múltiplas músicas selecionadas do ranking."""
+        # Obter IDs das músicas selecionadas
+        selected_music_ids = self._get_selected_music_ids_from_ranking()
+        
+        if not selected_music_ids:
+            return
+        
+        # Confirmar ação
+        count = len(selected_music_ids)
+        dlg = wx.MessageDialog(
+            self,
+            f"Tem certeza que deseja remover {count} música(s) da classificação?\n\nElas voltarão para análise.",
+            "Confirmar Remoção",
+            wx.YES_NO | wx.ICON_QUESTION
+        )
+        
+        if dlg.ShowModal() == wx.ID_YES:
+            # Processar cada música selecionada
+            for music_id in selected_music_ids:
+                # Zerar as estrelas da música (volta para análise)
+                self.controller.music_model.update_stars(music_id, 0)
+                
+                # Remover todas as comparações relacionadas a esta música
+                self.controller.comparison_model.remove_comparisons_for_music(music_id)
+            
+            # Limpar estado de comparação se alguma música removida estava sendo comparada
+            self.controller.comparison_state_model.clear_comparison_state()
+            
+            # Atualizar interface
+            self.update_analysis_tree()
+            self.update_ranking_list()
+            self.update_status()
+            
+            wx.MessageBox(
+                f"{count} música(s) removida(s) da classificação com sucesso!",
+                "Remoção Concluída",
+                wx.OK | wx.ICON_INFORMATION
+            )
+        
+        dlg.Destroy()
+
+    def on_ignore_multiple_from_ranking(self):
+        """Ignora múltiplas músicas selecionadas permanentemente."""
+        # Obter IDs das músicas selecionadas
+        selected_music_ids = self._get_selected_music_ids_from_ranking()
+        
+        if not selected_music_ids:
+            return
+        
+        # Confirmar ação
+        count = len(selected_music_ids)
+        dlg = wx.MessageDialog(
+            self,
+            f"Tem certeza que deseja IGNORAR PERMANENTEMENTE {count} música(s)?\n\nElas não aparecerão mais nas comparações.",
+            "Confirmar Ignorar",
+            wx.YES_NO | wx.ICON_WARNING
+        )
+        
+        if dlg.ShowModal() == wx.ID_YES:
+            # Processar cada música selecionada
+            for music_id in selected_music_ids:
+                # Marcar como ignorada (-1)
+                self.controller.skip_music(music_id)
+                
+                # Remover todas as comparações relacionadas a esta música
+                self.controller.comparison_model.remove_comparisons_for_music(music_id)
+            
+            # Limpar estado de comparação se alguma música ignorada estava sendo comparada
+            self.controller.comparison_state_model.clear_comparison_state()
+            
+            # Atualizar interface
+            self.update_analysis_tree()
+            self.update_ranking_list()
+            self.update_status()
+            
+            wx.MessageBox(
+                f"{count} música(s) ignorada(s) permanentemente!",
+                "Ignorar Concluído",
+                wx.OK | wx.ICON_INFORMATION
+            )
+        
+        dlg.Destroy()
+
+    def _get_selected_music_ids_from_ranking(self):
+        """Obtém os IDs das músicas selecionadas na lista de ranking."""
+        selected_ids = []
+        
+        # Obter lista de músicas classificadas
+        ranked_musics = self.controller.get_classified_musics_topological()
+        classified_musics = [music for music in ranked_musics if music['stars'] is not None and music['stars'] > 0]
+        
+        # Iterar pelos itens selecionados
+        item = self.ranking_list.GetFirstSelected()
+        while item != -1:
+            if item < len(classified_musics):
+                selected_ids.append(classified_musics[item]['id'])
+            item = self.ranking_list.GetNextSelected(item)
+        
+        return selected_ids
+
+    def on_create_and_play_playlist_simple(self):
+        """Cria uma playlist temporária e reproduz no player padrão."""
+        # Obter caminhos das músicas selecionadas
+        selected_music_paths = self._get_selected_music_paths_from_ranking()
+        
+        if not selected_music_paths:
+            return
+        
+        # Criar e reproduzir playlist diretamente
+        self._create_and_play_playlist(selected_music_paths)
+
+    def on_play_multiple_musics(self):
+        """Método mantido para compatibilidade - redireciona para criação simples de playlist."""
+        self.on_create_and_play_playlist_simple()
+
+    def _create_and_play_playlist(self, music_paths):
+        """Cria uma playlist temporária e abre no player padrão."""
+        try:
+            # Criar arquivo de playlist temporário
+            temp_dir = tempfile.gettempdir()
+            timestamp = int(time.time())
+            playlist_path = os.path.join(temp_dir, f"RankMyMP3_playlist_{timestamp}.m3u")
+            
+            # Escrever playlist no formato M3U
+            with open(playlist_path, 'w', encoding='utf-8') as f:
+                f.write("#EXTM3U\n")
+                f.write(f"# Playlist criada pelo RankMyMP3\n")
+                f.write(f"# {len(music_paths)} música(s)\n\n")
+                
+                for music_path in music_paths:
+                    if os.path.exists(music_path):
+                        # Adicionar entrada da música com título
+                        music_name = os.path.basename(music_path)
+                        f.write(f"#EXTINF:-1,{music_name}\n")
+                        f.write(f"{music_path}\n")
+            
+            # Abrir playlist no player padrão
+            system = platform.system()
+            
+            if system == "Windows":
+                os.startfile(playlist_path)
+            elif system == "Darwin":  # macOS
+                subprocess.run(['open', playlist_path], check=True)
+            else:  # Linux
+                subprocess.run(['xdg-open', playlist_path], check=True)
+            
+        except Exception as e:
+            wx.MessageBox(
+                f"Erro ao criar playlist:\n{str(e)}\n\n" +
+                "Tente exportar a playlist manualmente.",
+                "Erro na Playlist",
+                wx.OK | wx.ICON_ERROR
+            )
+
+    def _show_export_playlist_options(self, music_paths):
+        """Mostra opções para exportar playlist."""
+        dlg = wx.MessageDialog(
+            self,
+            f"Exportar playlist com {len(music_paths)} música(s)?\n\n" +
+            "Escolha o formato:",
+            "Exportar Playlist",
+            wx.YES_NO | wx.ICON_QUESTION
+        )
+        dlg.SetYesNoLabels("M3U (Padrão)", "PLS (Winamp)")
+        
+        if dlg.ShowModal() == wx.ID_YES:
+            self._export_playlist_m3u(music_paths)
+        else:
+            self._export_playlist_pls(music_paths)
+        
+        dlg.Destroy()
+
+    def _export_playlist_m3u(self, music_paths):
+        """Exporta playlist no formato M3U."""
+        dlg = wx.FileDialog(
+            self,
+            "Salvar Playlist M3U",
+            wildcard="Playlist M3U (*.m3u)|*.m3u",
+            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT
+        )
+        
+        if dlg.ShowModal() == wx.ID_OK:
+            playlist_path = dlg.GetPath()
+            try:
+                with open(playlist_path, 'w', encoding='utf-8') as f:
+                    f.write("#EXTM3U\n")
+                    f.write(f"# Playlist criada pelo RankMyMP3\n")
+                    f.write(f"# {len(music_paths)} música(s)\n\n")
+                    
+                    for music_path in music_paths:
+                        if os.path.exists(music_path):
+                            music_name = os.path.basename(music_path)
+                            f.write(f"#EXTINF:-1,{music_name}\n")
+                            f.write(f"{music_path}\n")
+                
+                wx.MessageBox(
+                    f"Playlist M3U salva com sucesso!\n\n{playlist_path}",
+                    "Exportação Concluída",
+                    wx.OK | wx.ICON_INFORMATION
+                )
+            except Exception as e:
+                wx.MessageBox(
+                    f"Erro ao salvar playlist:\n{str(e)}",
+                    "Erro na Exportação",
+                    wx.OK | wx.ICON_ERROR
+                )
+        
+        dlg.Destroy()
+
+    def _export_playlist_pls(self, music_paths):
+        """Exporta playlist no formato PLS."""
+        dlg = wx.FileDialog(
+            self,
+            "Salvar Playlist PLS",
+            wildcard="Playlist PLS (*.pls)|*.pls",
+            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT
+        )
+        
+        if dlg.ShowModal() == wx.ID_OK:
+            playlist_path = dlg.GetPath()
+            try:
+                with open(playlist_path, 'w', encoding='utf-8') as f:
+                    f.write("[playlist]\n")
+                    f.write(f"NumberOfEntries={len(music_paths)}\n\n")
+                    
+                    valid_count = 0
+                    for i, music_path in enumerate(music_paths, 1):
+                        if os.path.exists(music_path):
+                            valid_count += 1
+                            music_name = os.path.basename(music_path)
+                            f.write(f"File{valid_count}={music_path}\n")
+                            f.write(f"Title{valid_count}={music_name}\n")
+                            f.write(f"Length{valid_count}=-1\n\n")
+                
+                wx.MessageBox(
+                    f"Playlist PLS salva com sucesso!\n\n{playlist_path}",
+                    "Exportação Concluída",
+                    wx.OK | wx.ICON_INFORMATION
+                )
+            except Exception as e:
+                wx.MessageBox(
+                    f"Erro ao salvar playlist:\n{str(e)}",
+                    "Erro na Exportação",
+                    wx.OK | wx.ICON_ERROR
+                )
+        
+        dlg.Destroy()
+
+    def on_move_multiple_music_files(self):
+        """Move múltiplas músicas selecionadas para uma nova pasta."""
+        # Obter IDs das músicas selecionadas
+        selected_music_ids = self._get_selected_music_ids_from_ranking()
+        
+        if not selected_music_ids:
+            return
+        
+        count = len(selected_music_ids)
+        
+        # Escolher pasta de destino
+        dlg = wx.DirDialog(
+            self,
+            f"Escolha a pasta de destino para {count} música(s):",
+            style=wx.DD_DEFAULT_STYLE | wx.DD_DIR_MUST_EXIST
+        )
+        
+        if dlg.ShowModal() == wx.ID_OK:
+            destination_folder = dlg.GetPath()
+            
+            # Confirmar operação
+            confirm_dlg = wx.MessageDialog(
+                self,
+                f"Mover {count} música(s) para:\n{destination_folder}\n\nEsta operação atualizará os caminhos no banco de dados.",
+                "Confirmar Movimentação",
+                wx.YES_NO | wx.ICON_QUESTION
+            )
+            
+            if confirm_dlg.ShowModal() == wx.ID_YES:
+                success_count = 0
+                failed_files = []
+                
+                # Processar cada música selecionada
+                for music_id in selected_music_ids:
+                    music_details = self.controller.music_model.get_music_details(music_id)
+                    if not music_details:
+                        failed_files.append(f"ID {music_id}: Música não encontrada no banco")
+                        continue
+                    
+                    current_path = music_details['path']
+                    filename = os.path.basename(current_path)
+                    new_path = os.path.join(destination_folder, filename)
+                    
+                    try:
+                        # Verificar se arquivo fonte existe
+                        if not os.path.exists(current_path):
+                            failed_files.append(f"{filename}: Arquivo fonte não encontrado")
+                            continue
+                        
+                        # Verificar se destino já existe
+                        if os.path.exists(new_path):
+                            # Gerar nome único
+                            base, ext = os.path.splitext(filename)
+                            counter = 1
+                            while os.path.exists(new_path):
+                                new_filename = f"{base}_{counter}{ext}"
+                                new_path = os.path.join(destination_folder, new_filename)
+                                counter += 1
+                        
+                        # Mover arquivo
+                        import shutil
+                        shutil.move(current_path, new_path)
+                        
+                        # Atualizar banco de dados
+                        success = self.controller.music_model.update_music_path(music_id, new_path)
+                        
+                        if success:
+                            success_count += 1
+                        else:
+                            # Tentar reverter movimento do arquivo
+                            try:
+                                shutil.move(new_path, current_path)
+                            except:
+                                pass
+                            failed_files.append(f"{filename}: Erro ao atualizar banco de dados")
+                            
+                    except Exception as e:
+                        failed_files.append(f"{filename}: {str(e)}")
+                
+                # Atualizar interface se houve sucesso
+                if success_count > 0:
+                    self.update_analysis_tree()
+                    self.update_ranking_list()
+                
+                # Mostrar resultado
+                if success_count > 0:
+                    message = f"{success_count} música(s) movida(s) com sucesso!"
+                    if failed_files:
+                        message += f"\n\n{len(failed_files)} arquivo(s) falharam:\n" + "\n".join(failed_files[:3])
+                        if len(failed_files) > 3:
+                            message += f"\n... e mais {len(failed_files) - 3}"
+                    
+                    wx.MessageBox(
+                        message,
+                        "Movimentação Concluída" if not failed_files else "Movimentação Parcial",
+                        wx.OK | (wx.ICON_INFORMATION if not failed_files else wx.ICON_WARNING)
+                    )
+                else:
+                    wx.MessageBox(
+                        f"Não foi possível mover nenhuma das {count} música(s) selecionada(s).\n\nDetalhes:\n" + "\n".join(failed_files[:5]),
+                        "Erro na Movimentação",
+                        wx.OK | wx.ICON_ERROR
+                    )
+            
+            confirm_dlg.Destroy()
+        
+        dlg.Destroy()
+
+    def on_copy_multiple_music_files(self):
+        """Copia múltiplas músicas selecionadas para uma nova pasta."""
+        # Obter caminhos das músicas selecionadas
+        selected_music_paths = self._get_selected_music_paths_from_ranking()
+        
+        if not selected_music_paths:
+            return
+        
+        count = len(selected_music_paths)
+        
+        # Escolher pasta de destino
+        dlg = wx.DirDialog(
+            self,
+            f"Escolha a pasta de destino para copiar {count} música(s):",
+            style=wx.DD_DEFAULT_STYLE | wx.DD_DIR_MUST_EXIST
+        )
+        
+        if dlg.ShowModal() == wx.ID_OK:
+            destination_folder = dlg.GetPath()
+            
+            # Confirmar operação
+            confirm_dlg = wx.MessageDialog(
+                self,
+                f"Copiar {count} música(s) para:\n{destination_folder}\n\nOs arquivos originais permanecerão inalterados.",
+                "Confirmar Cópia",
+                wx.YES_NO | wx.ICON_QUESTION
+            )
+            
+            if confirm_dlg.ShowModal() == wx.ID_YES:
+                success_count = 0
+                failed_files = []
+                
+                # Processar cada música selecionada
+                for music_path in selected_music_paths:
+                    filename = os.path.basename(music_path)
+                    new_path = os.path.join(destination_folder, filename)
+                    
+                    try:
+                        # Verificar se arquivo fonte existe
+                        if not os.path.exists(music_path):
+                            failed_files.append(f"{filename}: Arquivo fonte não encontrado")
+                            continue
+                        
+                        # Verificar se destino já existe e gerar nome único se necessário
+                        if os.path.exists(new_path):
+                            base, ext = os.path.splitext(filename)
+                            counter = 1
+                            while os.path.exists(new_path):
+                                new_filename = f"{base}_{counter}{ext}"
+                                new_path = os.path.join(destination_folder, new_filename)
+                                counter += 1
+                        
+                        # Copiar arquivo
+                        import shutil
+                        shutil.copy2(music_path, new_path)
+                        success_count += 1
+                            
+                    except Exception as e:
+                        failed_files.append(f"{filename}: {str(e)}")
+                
+                # Mostrar resultado
+                if success_count > 0:
+                    message = f"{success_count} música(s) copiada(s) com sucesso para:\n{destination_folder}"
+                    if failed_files:
+                        message += f"\n\n{len(failed_files)} arquivo(s) falharam:\n" + "\n".join(failed_files[:3])
+                        if len(failed_files) > 3:
+                            message += f"\n... e mais {len(failed_files) - 3}"
+                    
+                    wx.MessageBox(
+                        message,
+                        "Cópia Concluída" if not failed_files else "Cópia Parcial",
+                        wx.OK | (wx.ICON_INFORMATION if not failed_files else wx.ICON_WARNING)
+                    )
+                else:
+                    wx.MessageBox(
+                        f"Não foi possível copiar nenhuma das {count} música(s) selecionada(s).\n\nDetalhes:\n" + "\n".join(failed_files[:5]),
+                        "Erro na Cópia",
+                        wx.OK | wx.ICON_ERROR
+                    )
+            
+            confirm_dlg.Destroy()
+        
+        dlg.Destroy()
+
+    def on_export_selected_playlist(self):
+        """Exporta playlist das músicas selecionadas."""
+        # Obter caminhos das músicas selecionadas
+        selected_music_paths = self._get_selected_music_paths_from_ranking()
+        
+        if not selected_music_paths:
+            return
+        
+        # Mostrar opções de exportação
+        self._show_export_playlist_options(selected_music_paths)
+
+    def _get_selected_music_paths_from_ranking(self):
+        """Obtém os caminhos das músicas selecionadas na lista de ranking."""
+        selected_paths = []
+        
+        # Obter lista de músicas classificadas
+        ranked_musics = self.controller.get_classified_musics_topological()
+        classified_musics = [music for music in ranked_musics if music['stars'] is not None and music['stars'] > 0]
+        
+        # Iterar pelos itens selecionados
+        item = self.ranking_list.GetFirstSelected()
+        while item != -1:
+            if item < len(classified_musics):
+                selected_paths.append(classified_musics[item]['path'])
+            item = self.ranking_list.GetNextSelected(item)
+        
+        return selected_paths
 
     def on_comparison_choice(self, choice):
         """Lida com a escolha do usuário na comparação."""
