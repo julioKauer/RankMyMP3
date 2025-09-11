@@ -2,7 +2,13 @@
 
 Sistema inteligente de ranking de músicas usando comparações diretas e busca binária.
 
-## 📋 Características
+## � Instalação Rápida
+
+**👤 Usuário Final**: Baixe o ZIP, execute `install.bat` (Windows) ou `install.sh` (Linux/Mac) → `run.bat`/`run.sh`  
+**📖 Guia Detalhado**: Veja [INSTALL_GUIDE.md](INSTALL_GUIDE.md) para instruções passo-a-passo  
+**🧑‍💻 Desenvolvedores**: Continue lendo para instalação completa com ambiente virtual
+
+## �📋 Características
 
 - **Ranking por comparações**: Sistema baseado em comparações diretas entre músicas
 - **Busca binária inteligente**: Classificação eficiente com máximo de log₂(n) comparações por música
@@ -70,11 +76,37 @@ RankMyMP3/
 
 ## 🛠️ Instalação
 
-### Pré-requisitos
+### 📦 Para Usuários Finais (Recomendado)
+
+#### Opção 1: Download Direto (Mais Simples)
+1. **Baixe o arquivo ZIP** do projeto do GitHub
+2. **Extraia** para uma pasta de sua escolha (ex: `C:\RankMyMP3` ou `~/RankMyMP3`)
+3. **Instale o Python** se não tiver:
+   - Windows: Baixe de [python.org](https://www.python.org/downloads/) ✅ Marque "Add to PATH"
+   - Mac: `brew install python` ou baixe de python.org
+   - Linux: `sudo apt install python3 python3-pip` (Ubuntu/Debian)
+4. **Abra o terminal/prompt** na pasta do RankMyMP3
+5. **Instale dependências**: `pip install wxpython send2trash`
+6. **Execute**: `python main.py`
+
+#### Opção 2: Instalação com Script (Em Breve)
+```bash
+# Windows
+curl -o install.bat https://raw.githubusercontent.com/seu-usuario/RankMyMP3/main/install.bat
+install.bat
+
+# Linux/Mac
+curl -sSL https://raw.githubusercontent.com/seu-usuario/RankMyMP3/main/install.sh | bash
+```
+
+### 🧑‍💻 Para Desenvolvedores
+
+#### Pré-requisitos
 - Python 3.8+
+- Git
 - pip
 
-### Passos
+#### Instalação Completa
 
 1. **Clone o repositório**:
 ```bash
@@ -84,10 +116,10 @@ cd RankMyMP3
 
 2. **Crie um ambiente virtual** (recomendado):
 ```bash
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
+python -m venv .venv
+source .venv/bin/activate  # Linux/Mac
 # ou
-venv\Scripts\activate     # Windows
+.venv\Scripts\activate     # Windows
 ```
 
 3. **Instale as dependências**:
