@@ -462,6 +462,9 @@ class MusicApp(wx.Frame):
                 open_folder_item = menu.Append(wx.ID_ANY, "🗂️ Abrir Pasta")
                 self.Bind(wx.EVT_MENU, lambda evt: self.on_open_music_folder(music_path), open_folder_item)
                 
+                move_item = menu.Append(wx.ID_ANY, "📦 Mover para Pasta...")
+                self.Bind(wx.EVT_MENU, lambda evt: self.on_move_music_file(music_id), move_item)
+                
                 menu.AppendSeparator()
             
             if item_text.startswith("❌"):
@@ -634,6 +637,10 @@ class MusicApp(wx.Frame):
         # Opção para abrir pasta no sistema
         open_folder_item = menu.Append(wx.ID_ANY, f"🗂️ Abrir Pasta")
         self.Bind(wx.EVT_MENU, lambda evt: self.on_open_music_folder(selected_music['path']), open_folder_item)
+        
+        # Opção para mover arquivo
+        move_item = menu.Append(wx.ID_ANY, f"📦 Mover para Pasta...")
+        self.Bind(wx.EVT_MENU, lambda evt: self.on_move_music_file(music_id), move_item)
         
         menu.AppendSeparator()
         
@@ -992,6 +999,93 @@ class MusicApp(wx.Frame):
                 "Comando não disponível",
                 wx.OK | wx.ICON_WARNING
             )
+
+    def on_move_music_file(self, music_id):
+        """Move uma música para outra pasta e atualiza o caminho no banco."""
+        # Obter informações atuais da música
+        music_details = self.controller.music_model.get_music_details(music_id)
+        if not music_details:
+            wx.MessageBox("Música não encontrada no banco de dados.", "Erro", wx.OK | wx.ICON_ERROR)
+            return
+            
+        current_path = music_details['path']
+        current_folder = os.path.dirname(current_path)
+        filename = os.path.basename(current_path)
+        
+        # Verificar se o arquivo atual existe
+        if not os.path.exists(current_path):
+            wx.MessageBox(
+                f"O arquivo da música não foi encontrado:\n{current_path}\n\nNão é possível mover.",
+                "Arquivo não encontrado",
+                wx.OK | wx.ICON_ERROR
+            )
+            return
+        
+        # Dialog para selecionar nova pasta
+        with wx.DirDialog(
+            self,
+            "Selecione a pasta de destino:",
+            defaultPath=current_folder,
+            style=wx.DD_DEFAULT_STYLE | wx.DD_DIR_MUST_EXIST
+        ) as dialog:
+            
+            if dialog.ShowModal() != wx.ID_OK:
+                return  # Usuário cancelou
+                
+            new_folder = dialog.GetPath()
+            new_path = os.path.join(new_folder, filename)
+            
+            # Verificar se o arquivo de destino já existe
+            if os.path.exists(new_path):
+                response = wx.MessageBox(
+                    f"Já existe um arquivo com o mesmo nome na pasta de destino:\n{new_path}\n\nDeseja substituir?",
+                    "Arquivo já existe",
+                    wx.YES_NO | wx.ICON_QUESTION
+                )
+                if response != wx.YES:
+                    return
+            
+            # Tentar mover o arquivo
+            try:
+                import shutil
+                shutil.move(current_path, new_path)
+                
+                # Atualizar o caminho no banco de dados
+                success = self.controller.music_model.update_music_path(music_id, new_path)
+                
+                if success:
+                    wx.MessageBox(
+                        f"Música movida com sucesso!\n\nDe: {current_path}\nPara: {new_path}",
+                        "Movimento realizado",
+                        wx.OK | wx.ICON_INFORMATION
+                    )
+                    
+                    # Atualizar as interfaces
+                    self.update_analysis_tree()
+                    self.update_ranking_list()
+                    
+                else:
+                    # Se falhou ao atualizar o banco, tentar voltar o arquivo
+                    try:
+                        shutil.move(new_path, current_path)
+                        wx.MessageBox(
+                            "Erro ao atualizar o banco de dados. O arquivo foi restaurado para a posição original.",
+                            "Erro no banco de dados",
+                            wx.OK | wx.ICON_ERROR
+                        )
+                    except Exception as e:
+                        wx.MessageBox(
+                            f"ERRO CRÍTICO: Arquivo foi movido mas não foi possível atualizar o banco nem restaurar!\n\nArquivo atual: {new_path}\nDeveria estar em: {current_path}\nErro: {str(e)}",
+                            "Erro crítico",
+                            wx.OK | wx.ICON_ERROR
+                        )
+                        
+            except Exception as e:
+                wx.MessageBox(
+                    f"Erro ao mover o arquivo:\n{str(e)}",
+                    "Erro de movimento",
+                    wx.OK | wx.ICON_ERROR
+                )
 
     def get_filtered_musics(self):
         """Retorna músicas filtradas pelos critérios atuais."""

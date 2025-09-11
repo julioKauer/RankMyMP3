@@ -81,6 +81,24 @@ class MusicModel:
         cursor.execute('UPDATE music SET stars = ? WHERE id = ?', (stars, music_id))
         self.conn.commit()
 
+    def update_music_path(self, music_id, new_path):
+        """
+        Atualiza o caminho de uma música no banco de dados.
+        :param music_id: ID da música.
+        :param new_path: Novo caminho completo do arquivo.
+        :return: True se a atualização foi bem-sucedida, False caso contrário.
+        """
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute('UPDATE music SET path = ? WHERE id = ?', (new_path, music_id))
+            self.conn.commit()
+            
+            # Verificar se a linha foi realmente atualizada
+            return cursor.rowcount > 0
+        except Exception as e:
+            print(f"Erro ao atualizar caminho da música: {e}")
+            return False
+
     def delete_music(self, music_id):
         cursor = self.conn.cursor()
         cursor.execute('SELECT path FROM music WHERE id = ?', (music_id,))

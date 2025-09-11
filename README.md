@@ -25,6 +25,7 @@ Sistema inteligente de ranking de músicas usando comparações diretas e busca 
 ### 📁 Navegação de Arquivos
 - **Mostrar Caminho**: Veja o caminho completo de qualquer música
 - **Abrir Pasta**: Acesse a pasta da música no explorador de arquivos
+- **Mover Música**: Mova arquivos para outras pastas e atualize o banco automaticamente
 - **Multiplataforma**: Funciona no Windows, macOS e Linux
 - **Integração Nativa**: Usa o gerenciador de arquivos padrão do sistema
 
@@ -206,6 +207,13 @@ pytest --cache-clear
 4. **Ver ranking**:
    - O ranking é exibido automaticamente na coluna direita
    - Músicas são ordenadas por estrelas (5⭐ = melhor)
+
+5. **Gerenciar arquivos**:
+   - **Clique direito** em qualquer música para acessar opções:
+     - **📁 Mostrar Caminho**: Ver localização completa do arquivo
+     - **🗂️ Abrir Pasta**: Abrir pasta no explorador de arquivos
+     - **📦 Mover para Pasta**: Mover arquivo para outro local
+   - Todas as operações atualizam automaticamente o banco de dados
 
 ## 🧠 Como funciona
 
