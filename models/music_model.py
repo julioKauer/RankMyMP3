@@ -283,3 +283,46 @@ class MusicModel:
                     queue.append(neighbor)
         
         return ranking
+
+    def get_music_tags(self, music_id):
+        """Retorna as tags de uma música."""
+        cursor = self.conn.cursor()
+        cursor.execute('''
+            SELECT t.name 
+            FROM tags t
+            JOIN music_tags mt ON t.id = mt.tag_id
+            WHERE mt.music_id = ?
+            ORDER BY t.name
+        ''', (music_id,))
+        
+        return [row[0] for row in cursor.fetchall()]
+
+    def remove_tag_from_music(self, music_id, tag_name):
+        """Remove uma tag específica de uma música."""
+        cursor = self.conn.cursor()
+        
+        # Primeiro, obter o ID da tag
+        cursor.execute('SELECT id FROM tags WHERE name = ?', (tag_name,))
+        tag_result = cursor.fetchone()
+        
+        if tag_result:
+            tag_id = tag_result[0]
+            # Remover associação
+            cursor.execute('DELETE FROM music_tags WHERE music_id = ? AND tag_id = ?', (music_id, tag_id))
+            self.conn.commit()
+
+    def get_music_by_id(self, music_id):
+        """Retorna informações de uma música pelo ID."""
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT id, path, stars FROM music WHERE id = ?', (music_id,))
+        result = cursor.fetchone()
+        
+        if result:
+            return {'id': result[0], 'path': result[1], 'stars': result[2]}
+        return None
+
+    def get_all_tags(self):
+        """Retorna todas as tags disponíveis."""
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT name FROM tags ORDER BY name')
+        return [row[0] for row in cursor.fetchall()]

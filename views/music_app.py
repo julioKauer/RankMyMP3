@@ -33,9 +33,11 @@ class MusicApp(wx.Frame):
         self.ranking_list.InsertColumn(0, "Posição")
         self.ranking_list.InsertColumn(1, "Música")
         self.ranking_list.InsertColumn(2, "Estrelas")
+        self.ranking_list.InsertColumn(3, "Tags")
         self.ranking_list.SetColumnWidth(0, 70)
-        self.ranking_list.SetColumnWidth(1, 500)
-        self.ranking_list.SetColumnWidth(2, 200)
+        self.ranking_list.SetColumnWidth(1, 350)
+        self.ranking_list.SetColumnWidth(2, 100)
+        self.ranking_list.SetColumnWidth(3, 200)
 
         # Área de comparação (sempre visível, mas compacta)
         self.comparison_panel = wx.Panel(self.panel)
@@ -51,6 +53,10 @@ class MusicApp(wx.Frame):
         # Atualizar as listas
         self.update_analysis_tree()
         self.update_ranking_list()
+        
+        # Popular o filtro de tags
+        if hasattr(self, 'tags_filter'):
+            self.populate_tags_filter()
 
         # Iniciar primeira comparação automaticamente
         wx.CallAfter(self.start_auto_comparison)
@@ -95,6 +101,11 @@ class MusicApp(wx.Frame):
         # Layout do painel direito (ranking)
         right_sizer = wx.BoxSizer(wx.VERTICAL)
         right_sizer.Add(wx.StaticText(self.right_panel, label="🏆 Ranking Atual:"), 0, wx.ALL, 5)
+        
+        # Adicionar barra de filtros
+        self._setup_filter_panel()
+        right_sizer.Add(self.filter_panel, 0, wx.EXPAND | wx.ALL, 5)
+        
         right_sizer.Add(self.ranking_list, 1, wx.EXPAND | wx.ALL, 5)
         self.right_panel.SetSizer(right_sizer)
 
@@ -103,6 +114,47 @@ class MusicApp(wx.Frame):
         main_sizer.Add(self.comparison_panel, 0, wx.EXPAND | wx.ALL, 10)
 
         self.panel.SetSizer(main_sizer)
+
+    def _setup_filter_panel(self):
+        """Configura o painel de filtros para estrelas e tags."""
+        self.filter_panel = wx.Panel(self.right_panel)
+        
+        # Layout horizontal para filtros
+        filter_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        
+        # Filtro por estrelas
+        filter_sizer.Add(wx.StaticText(self.filter_panel, label="⭐ Estrelas:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
+        
+        self.stars_filter = wx.Choice(self.filter_panel, choices=[
+            "Todas", "⭐⭐⭐⭐⭐ (5)", "⭐⭐⭐⭐☆ (4)", "⭐⭐⭐☆☆ (3)", "⭐⭐☆☆☆ (2)", "⭐☆☆☆☆ (1)"
+        ])
+        self.stars_filter.SetSelection(0)  # "Todas" por padrão
+        filter_sizer.Add(self.stars_filter, 0, wx.ALL, 5)
+        
+        # Espaçador
+        filter_sizer.Add(wx.StaticLine(self.filter_panel, style=wx.LI_VERTICAL), 0, wx.EXPAND | wx.ALL, 5)
+        
+        # Filtro por tags
+        filter_sizer.Add(wx.StaticText(self.filter_panel, label="🏷️ Tags:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
+        
+        # Usar ComboBox com dropdown para tags
+        self.tags_filter = wx.ComboBox(self.filter_panel, style=wx.CB_READONLY)
+        self.tags_filter.Append("Todas as Tags")
+        self.tags_filter.SetSelection(0)  # "Todas as Tags" por padrão
+        self.populate_tags_filter()  # Carregar tags disponíveis
+        filter_sizer.Add(self.tags_filter, 0, wx.ALL, 5)
+        
+        # Botão limpar filtros
+        self.clear_filters_btn = wx.Button(self.filter_panel, label="❌ Limpar")
+        self.clear_filters_btn.SetMinSize((80, -1))
+        filter_sizer.Add(self.clear_filters_btn, 0, wx.ALL, 5)
+        
+        self.filter_panel.SetSizer(filter_sizer)
+        
+        # Bind eventos dos filtros
+        self.stars_filter.Bind(wx.EVT_CHOICE, self.on_filter_changed)
+        self.tags_filter.Bind(wx.EVT_COMBOBOX, self.on_filter_changed)
+        self.clear_filters_btn.Bind(wx.EVT_BUTTON, self.on_clear_filters)
 
     def _setup_comparison_panel(self):
         """Configura o painel de comparação - sempre visível e compacto."""
@@ -299,15 +351,36 @@ class MusicApp(wx.Frame):
         self.analysis_tree.Expand(analysis_root)
 
     def update_ranking_list(self):
-        """Atualiza a lista de ranking."""
+        """Atualiza a lista de ranking com filtros aplicados."""
         self.ranking_list.DeleteAllItems()
-        ranked_musics = self.controller.get_classified_musics_topological()
-        for position, music in enumerate(ranked_musics, 1):
+        
+        # Verificar se há filtros ativos
+        has_filters = (
+            hasattr(self, 'stars_filter') and self.stars_filter.GetSelection() > 0 or
+            hasattr(self, 'tags_filter') and self.tags_filter.GetSelection() > 0
+        )
+        
+        if has_filters:
+            # Usar músicas filtradas
+            filtered_musics = self.get_filtered_musics()
+            musics_to_show = filtered_musics
+        else:
+            # Mostrar todas as músicas classificadas
+            ranked_musics = self.controller.get_classified_musics_topological()
+            musics_to_show = [music for music in ranked_musics if music['stars'] is not None and music['stars'] > 0]
+        
+        # Adicionar músicas à lista
+        for position, music in enumerate(musics_to_show, 1):
             if music['stars'] is not None and music['stars'] > 0:  # Apenas músicas efetivamente classificadas
                 index = self.ranking_list.GetItemCount()
                 self.ranking_list.InsertItem(index, str(position))
                 self.ranking_list.SetItem(index, 1, os.path.basename(music['path']))
                 self.ranking_list.SetItem(index, 2, "★" * music['stars'])
+                
+                # Adicionar tags na coluna 3
+                tags = self.controller.music_model.get_music_tags(music['id'])
+                tags_text = ", ".join(tags) if tags else ""
+                self.ranking_list.SetItem(index, 3, tags_text)
 
     def update_lists(self):
         """Atualiza todas as listas - método de compatibilidade."""
@@ -532,12 +605,18 @@ class MusicApp(wx.Frame):
         # Criar menu contextual
         menu = wx.Menu()
         
+        # Opção para gerenciar tags
+        tags_item = menu.Append(wx.ID_ANY, f"🏷️ Gerenciar Tags")
+        self.Bind(wx.EVT_MENU, lambda evt: self.on_manage_tags(music_id, music_name), tags_item)
+        
+        menu.AppendSeparator()
+        
         # Opção para remover da classificação
-        remove_item = menu.Append(wx.ID_ANY, f"Remover '{music_name}' da Classificação")
+        remove_item = menu.Append(wx.ID_ANY, f"Remover da Classificação")
         self.Bind(wx.EVT_MENU, lambda evt: self.on_remove_from_ranking(music_id), remove_item)
         
         # Opção para ignorar permanentemente
-        ignore_item = menu.Append(wx.ID_ANY, f"Ignorar '{music_name}' Permanentemente")
+        ignore_item = menu.Append(wx.ID_ANY, f"Ignorar Permanentemente")
         self.Bind(wx.EVT_MENU, lambda evt: self.on_ignore_from_ranking(music_id), ignore_item)
         
         # Mostrar menu
@@ -761,3 +840,279 @@ class MusicApp(wx.Frame):
     def on_exit(self, event):
         """Sai da aplicação."""
         self.Close()
+
+    # ===================== NOVOS MÉTODOS PARA TAGS E FILTROS =====================
+
+    def on_filter_changed(self, event):
+        """Atualiza a lista quando os filtros mudam."""
+        self.update_ranking_list()
+
+    def on_clear_filters(self, event):
+        """Limpa todos os filtros."""
+        self.stars_filter.SetSelection(0)  # "Todas"
+        self.tags_filter.SetSelection(0)   # "Todas as Tags"
+        self.update_ranking_list()
+
+    def populate_tags_filter(self):
+        """Popula o filtro de tags com as tags disponíveis no banco."""
+        try:
+            # Limpar itens existentes (exceto "Todas as Tags")
+            while self.tags_filter.GetCount() > 1:
+                self.tags_filter.Delete(1)
+            
+            # Obter todas as tags do banco
+            all_tags = self.controller.music_model.get_all_tags()
+            
+            # Adicionar cada tag ao filtro
+            for tag in sorted(all_tags):
+                self.tags_filter.Append(tag)
+                
+        except Exception as e:
+            print(f"Erro ao carregar tags: {e}")
+
+    def refresh_tags_filter(self):
+        """Atualiza o filtro de tags (chamado após mudanças nas tags)."""
+        current_selection = self.tags_filter.GetSelection()
+        current_value = self.tags_filter.GetStringSelection() if current_selection >= 0 else ""
+        
+        # Repopular
+        self.populate_tags_filter()
+        
+        # Tentar restaurar seleção
+        if current_value:
+            new_index = self.tags_filter.FindString(current_value)
+            if new_index != wx.NOT_FOUND:
+                self.tags_filter.SetSelection(new_index)
+            else:
+                self.tags_filter.SetSelection(0)  # "Todas as Tags"
+
+    def on_manage_tags(self, music_id, music_name):
+        """Abre dialog para gerenciar tags de uma música."""
+        dialog = TagsDialog(self, music_id, music_name, self.controller.music_model)
+        if dialog.ShowModal() == wx.ID_OK:
+            # Atualizar a lista de ranking para mostrar as novas tags
+            self.update_ranking_list()
+            # Atualizar o filtro de tags
+            self.refresh_tags_filter()
+        dialog.Destroy()
+
+    def get_filtered_musics(self):
+        """Retorna músicas filtradas pelos critérios atuais."""
+        # Obter critérios de filtro
+        stars_selection = self.stars_filter.GetSelection()
+        tags_selection = self.tags_filter.GetSelection()
+        
+        # Determinar filtro de estrelas
+        stars_filter = None
+        if stars_selection > 0:  # Não é "Todas"
+            # Mapear índice para número de estrelas (5, 4, 3, 2, 1)
+            stars_filter = 6 - stars_selection
+        
+        # Determinar filtro de tags
+        tags_filter = None
+        if tags_selection > 0:  # Não é "Todas as Tags"
+            tags_filter = self.tags_filter.GetStringSelection()
+        
+        # Usar o método do modelo para filtrar
+        return self.controller.music_model.get_filtered_musics(
+            tag_filter=tags_filter,
+            min_stars=stars_filter,
+            max_stars=stars_filter
+        )
+
+
+class TagsDialog(wx.Dialog):
+    """Dialog para gerenciar tags de uma música."""
+    
+    def __init__(self, parent, music_id, music_name, music_model):
+        super().__init__(parent, title=f"🏷️ Gerenciar Tags - {music_name}", size=(500, 400))
+        
+        self.music_id = music_id
+        self.music_model = music_model
+        
+        # Layout principal
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+        
+        # Título
+        title_label = wx.StaticText(self, label=f"Tags para: {music_name}")
+        title_font = title_label.GetFont()
+        title_font.SetWeight(wx.FONTWEIGHT_BOLD)
+        title_label.SetFont(title_font)
+        main_sizer.Add(title_label, 0, wx.ALL, 10)
+        
+        # Tags atuais
+        main_sizer.Add(wx.StaticText(self, label="Tags Atuais:"), 0, wx.ALL, 5)
+        
+        self.current_tags_panel = wx.Panel(self)
+        self.current_tags_sizer = wx.WrapSizer(wx.HORIZONTAL)
+        self.current_tags_panel.SetSizer(self.current_tags_sizer)
+        main_sizer.Add(self.current_tags_panel, 0, wx.EXPAND | wx.ALL, 5)
+        
+        # Campo para nova tag
+        main_sizer.Add(wx.StaticText(self, label="Adicionar Nova Tag:"), 0, wx.ALL, 5)
+        
+        add_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.new_tag_ctrl = wx.TextCtrl(self, style=wx.TE_PROCESS_ENTER)
+        self.add_btn = wx.Button(self, label="Adicionar")
+        add_sizer.Add(self.new_tag_ctrl, 1, wx.ALL, 5)
+        add_sizer.Add(self.add_btn, 0, wx.ALL, 5)
+        main_sizer.Add(add_sizer, 0, wx.EXPAND)
+        
+        # Tags populares
+        main_sizer.Add(wx.StaticText(self, label="Tags Populares:"), 0, wx.ALL, 5)
+        
+        self.popular_tags_panel = wx.Panel(self)
+        self.popular_tags_sizer = wx.WrapSizer(wx.HORIZONTAL)
+        self.popular_tags_panel.SetSizer(self.popular_tags_sizer)
+        main_sizer.Add(self.popular_tags_panel, 1, wx.EXPAND | wx.ALL, 5)
+        
+        # Botões de controle
+        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        btn_sizer.AddStretchSpacer()
+        
+        save_btn = wx.Button(self, wx.ID_OK, "Salvar")
+        cancel_btn = wx.Button(self, wx.ID_CANCEL, "Cancelar")
+        
+        btn_sizer.Add(save_btn, 0, wx.ALL, 5)
+        btn_sizer.Add(cancel_btn, 0, wx.ALL, 5)
+        main_sizer.Add(btn_sizer, 0, wx.EXPAND | wx.ALL, 10)
+        
+        self.SetSizer(main_sizer)
+        
+        # Bind eventos
+        self.add_btn.Bind(wx.EVT_BUTTON, self.on_add_tag)
+        self.new_tag_ctrl.Bind(wx.EVT_TEXT_ENTER, self.on_add_tag)
+        
+        # Carregar dados
+        self.load_current_tags()
+        self.load_popular_tags()
+        
+        self.Center()
+    
+    def load_current_tags(self):
+        """Carrega as tags atuais da música."""
+        # Limpar tags atuais
+        self.current_tags_sizer.Clear(True)
+        
+        tags = self.music_model.get_music_tags(self.music_id)
+        
+        if not tags:
+            no_tags_label = wx.StaticText(self.current_tags_panel, label="(Nenhuma tag)")
+            no_tags_label.SetForegroundColour(wx.Colour(128, 128, 128))
+            self.current_tags_sizer.Add(no_tags_label, 0, wx.ALL, 2)
+        else:
+            for tag in tags:
+                self.add_tag_button(tag, self.current_tags_sizer, self.current_tags_panel, removable=True)
+        
+        self.current_tags_panel.Layout()
+    
+    def load_popular_tags(self):
+        """Carrega tags populares do banco (mais usadas) e algumas sugeridas."""
+        # Limpar tags populares
+        self.popular_tags_sizer.Clear(True)
+        
+        # Primeiro, tentar obter tags mais usadas do banco
+        try:
+            # Buscar tags mais populares (com mais associações)
+            cursor = self.music_model.conn.cursor()
+            cursor.execute('''
+                SELECT t.name, COUNT(mt.music_id) as usage_count
+                FROM tags t
+                LEFT JOIN music_tags mt ON t.id = mt.tag_id
+                GROUP BY t.id, t.name
+                HAVING usage_count > 0
+                ORDER BY usage_count DESC, t.name
+                LIMIT 10
+            ''')
+            popular_from_db = [row[0] for row in cursor.fetchall()]
+        except:
+            popular_from_db = []
+        
+        # Tags sugeridas básicas (apenas se não houver muitas no banco)
+        basic_suggestions = [
+            "rock", "pop", "jazz", "classical", "metal", "electronic",
+            "instrumental", "acoustic", "live", "cover"
+        ]
+        
+        # Combinar: populares do banco + sugestões que ainda não estão no banco
+        current_tags = self.music_model.get_music_tags(self.music_id)
+        tags_to_show = popular_from_db.copy()
+        
+        # Adicionar sugestões básicas que não estão nas populares e não estão já na música
+        for suggestion in basic_suggestions:
+            if (suggestion not in tags_to_show and 
+                suggestion not in current_tags and 
+                len(tags_to_show) < 15):
+                tags_to_show.append(suggestion)
+        
+        # Mostrar as tags
+        for tag in tags_to_show:
+            if tag not in current_tags:  # Não mostrar tags já adicionadas
+                self.add_tag_button(tag, self.popular_tags_sizer, self.popular_tags_panel, clickable=True)
+        
+        # Se não houver nenhuma tag para mostrar
+        if not any(tag not in current_tags for tag in tags_to_show):
+            no_tags_label = wx.StaticText(self.popular_tags_panel, label="(Todas as tags sugeridas já foram adicionadas)")
+            no_tags_label.SetForegroundColour(wx.Colour(128, 128, 128))
+            self.popular_tags_sizer.Add(no_tags_label, 0, wx.ALL, 2)
+        
+        self.popular_tags_panel.Layout()
+    
+    def add_tag_button(self, tag_name, sizer, parent, removable=False, clickable=False):
+        """Adiciona um botão de tag."""
+        if removable:
+            # Tag removível (com X)
+            tag_btn = wx.Button(parent, label=f"{tag_name} ❌", size=(100, 25))
+            tag_btn.Bind(wx.EVT_BUTTON, lambda evt: self.remove_tag(tag_name))
+        elif clickable:
+            # Tag clicável para adicionar
+            tag_btn = wx.Button(parent, label=tag_name, size=(80, 25))
+            tag_btn.Bind(wx.EVT_BUTTON, lambda evt: self.quick_add_tag(tag_name))
+        else:
+            # Tag apenas visual
+            tag_btn = wx.StaticText(parent, label=tag_name)
+        
+        sizer.Add(tag_btn, 0, wx.ALL, 2)
+    
+    def on_add_tag(self, event):
+        """Adiciona uma nova tag."""
+        tag_name = self.new_tag_ctrl.GetValue().strip().lower()
+        
+        if not tag_name:
+            return
+        
+        # Verificar se já existe
+        current_tags = self.music_model.get_music_tags(self.music_id)
+        if tag_name in current_tags:
+            wx.MessageBox(f"A tag '{tag_name}' já foi adicionada.", "Tag Duplicada", wx.OK | wx.ICON_INFORMATION)
+            return
+        
+        # Adicionar tag
+        self.music_model.add_tag(tag_name)
+        self.music_model.associate_tag(self.music_id, tag_name)
+        
+        # Limpar campo
+        self.new_tag_ctrl.SetValue("")
+        
+        # Recarregar listas
+        self.load_current_tags()
+        self.load_popular_tags()
+    
+    def quick_add_tag(self, tag_name):
+        """Adiciona uma tag rapidamente (do painel de populares)."""
+        # Adicionar tag
+        self.music_model.add_tag(tag_name)
+        self.music_model.associate_tag(self.music_id, tag_name)
+        
+        # Recarregar listas
+        self.load_current_tags()
+        self.load_popular_tags()
+    
+    def remove_tag(self, tag_name):
+        """Remove uma tag da música."""
+        # Implementar remoção (você precisará adicionar este método ao modelo)
+        self.music_model.remove_tag_from_music(self.music_id, tag_name)
+        
+        # Recarregar listas
+        self.load_current_tags()
+        self.load_popular_tags()
