@@ -448,6 +448,22 @@ class MusicApp(wx.Frame):
         if len(music_items) == 1:
             # Menu para uma música
             item_text = self.analysis_tree.GetItemText(music_items[0][0])
+            music_id = music_items[0][1]
+            
+            # Obter informações da música para mostrar o caminho
+            music_details = self.controller.music_model.get_music_details(music_id)
+            if music_details:
+                music_path = music_details['path']
+                
+                # Opções de caminho
+                show_path_item = menu.Append(wx.ID_ANY, "📁 Mostrar Caminho")
+                self.Bind(wx.EVT_MENU, lambda evt: self.on_show_music_path(music_path), show_path_item)
+                
+                open_folder_item = menu.Append(wx.ID_ANY, "🗂️ Abrir Pasta")
+                self.Bind(wx.EVT_MENU, lambda evt: self.on_open_music_folder(music_path), open_folder_item)
+                
+                menu.AppendSeparator()
+            
             if item_text.startswith("❌"):
                 # Música ignorada - opção para restaurar
                 restore_item = menu.Append(wx.ID_ANY, "Restaurar para Análise")
@@ -608,6 +624,16 @@ class MusicApp(wx.Frame):
         # Opção para gerenciar tags
         tags_item = menu.Append(wx.ID_ANY, f"🏷️ Gerenciar Tags")
         self.Bind(wx.EVT_MENU, lambda evt: self.on_manage_tags(music_id, music_name), tags_item)
+        
+        menu.AppendSeparator()
+        
+        # Opção para mostrar caminho da música
+        show_path_item = menu.Append(wx.ID_ANY, f"📁 Mostrar Caminho")
+        self.Bind(wx.EVT_MENU, lambda evt: self.on_show_music_path(selected_music['path']), show_path_item)
+        
+        # Opção para abrir pasta no sistema
+        open_folder_item = menu.Append(wx.ID_ANY, f"🗂️ Abrir Pasta")
+        self.Bind(wx.EVT_MENU, lambda evt: self.on_open_music_folder(selected_music['path']), open_folder_item)
         
         menu.AppendSeparator()
         
@@ -895,6 +921,77 @@ class MusicApp(wx.Frame):
             # Atualizar o filtro de tags
             self.refresh_tags_filter()
         dialog.Destroy()
+
+    def on_show_music_path(self, music_path):
+        """Mostra o caminho completo da música em um dialog."""
+        dialog = wx.MessageDialog(
+            self,
+            f"📁 Caminho completo da música:\n\n{music_path}",
+            "Localização da Música",
+            wx.OK | wx.ICON_INFORMATION
+        )
+        dialog.ShowModal()
+        dialog.Destroy()
+
+    def on_open_music_folder(self, music_path):
+        """Abre a pasta que contém a música no explorador de arquivos do sistema."""
+        import subprocess
+        import platform
+        
+        # Obter o diretório da música
+        folder_path = os.path.dirname(music_path)
+        
+        # Verificar se a pasta existe
+        if not os.path.exists(folder_path):
+            wx.MessageBox(
+                f"A pasta não foi encontrada:\n{folder_path}",
+                "Pasta não encontrada",
+                wx.OK | wx.ICON_ERROR
+            )
+            return
+        
+        try:
+            # Detectar o sistema operacional e usar o comando apropriado
+            system = platform.system()
+            
+            if system == "Windows":
+                # Windows - usar explorer
+                subprocess.run(['explorer', folder_path], check=True)
+            elif system == "Darwin":  # macOS
+                # macOS - usar open
+                subprocess.run(['open', folder_path], check=True)
+            else:  # Linux e outros Unix-like
+                # Linux - usar xdg-open (funciona na maioria das distribuições)
+                subprocess.run(['xdg-open', folder_path], check=True)
+                
+        except subprocess.CalledProcessError:
+            # Se falhar, tentar métodos alternativos
+            try:
+                if system == "Linux":
+                    # Tentar outros gerenciadores de arquivo comuns no Linux
+                    for file_manager in ['nautilus', 'dolphin', 'thunar', 'pcmanfm', 'nemo']:
+                        try:
+                            subprocess.run([file_manager, folder_path], check=True)
+                            break
+                        except (subprocess.CalledProcessError, FileNotFoundError):
+                            continue
+                    else:
+                        raise subprocess.CalledProcessError(1, "No file manager found")
+                else:
+                    raise
+            except subprocess.CalledProcessError:
+                # Se nada funcionar, mostrar erro com o caminho
+                wx.MessageBox(
+                    f"Não foi possível abrir a pasta automaticamente.\n\nCaminho da pasta:\n{folder_path}",
+                    "Erro ao abrir pasta",
+                    wx.OK | wx.ICON_WARNING
+                )
+        except FileNotFoundError:
+            wx.MessageBox(
+                f"Comando não encontrado para abrir pastas no seu sistema.\n\nCaminho da pasta:\n{folder_path}",
+                "Comando não disponível",
+                wx.OK | wx.ICON_WARNING
+            )
 
     def get_filtered_musics(self):
         """Retorna músicas filtradas pelos critérios atuais."""

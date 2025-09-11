@@ -8,8 +8,37 @@ Sistema inteligente de ranking de músicas usando comparações diretas e busca 
 - **Busca binária inteligente**: Classificação eficiente com máximo de log₂(n) comparações por música
 - **Redistribuição automática**: Sistema de estrelas (1-5) redistribuído automaticamente
 - **Interface amigável**: Interface gráfica wxPython simples e intuitiva
-- **Gerenciamento de pastas**: Adição e gerenciamento de pastas de música
-- **Persistência**: Banco SQLite para armazenar comparações e rankings
+## 🎵 Funcionalidades Principais
+
+### 🎯 Sistema de Ranking Inteligente
+- **Comparações Pareadas**: Compare músicas duas a duas para classificação precisa
+- **Algoritmo de Busca Binária**: Inserção eficiente de novas músicas no ranking
+- **Skip/Ignore**: Pule músicas temporariamente ou ignore permanentemente
+- **Estado Persistente**: Continue de onde parou após fechar o aplicativo
+
+### 🏷️ Sistema de Tags e Filtros
+- **Tags Personalizadas**: Adicione tags como "rock", "favoritas", "treino", etc.
+- **Filtros Avançados**: Combine filtros por estrelas e tags
+- **Sugestões Inteligentes**: Tags mais usadas aparecem primeiro
+- **Interface Intuitiva**: Dropdowns e diálogos fáceis de usar
+
+### 📁 Navegação de Arquivos
+- **Mostrar Caminho**: Veja o caminho completo de qualquer música
+- **Abrir Pasta**: Acesse a pasta da música no explorador de arquivos
+- **Multiplataforma**: Funciona no Windows, macOS e Linux
+- **Integração Nativa**: Usa o gerenciador de arquivos padrão do sistema
+
+### 🎛️ Interface Completa
+- **Árvore de Análise**: Visualize músicas por pasta e status
+- **Lista de Ranking**: Veja o ranking final ordenado por estrelas
+- **Menus Contextuais**: Clique direito para acessar todas as funcionalidades
+- **Filtros em Tempo Real**: Veja resultados instantaneamente
+
+### 🔄 Gerenciamento de Estado
+- **Auto-save**: Progresso salvo automaticamente
+- **Recuperação de Estado**: Continue comparações interrompidas
+- **Validação de Consistência**: Sistema detecta e corrige inconsistências
+- **Backup Automático**: Dados seguros no SQLite
 
 ## 🏗️ Arquitetura
 
@@ -68,6 +97,37 @@ pip install -r requirements.txt
 ```bash
 python main.py
 ```
+
+## 📚 Como Usar
+
+### 🎯 Classificação Básica
+1. **Adicione suas pastas de música** via `Arquivo > Configurar Pastas`
+2. **Inicie as comparações** - o sistema apresentará pares de músicas
+3. **Escolha a melhor** clicando no botão correspondente
+4. **Continue até classificar** todas as músicas
+
+### 🏷️ Sistema de Tags
+- **Adicionar Tags**: Clique direito em uma música → "🏷️ Gerenciar Tags"
+- **Filtrar por Tags**: Use o dropdown "Tags" na interface
+- **Combinar Filtros**: Combine filtros de estrelas e tags
+- **Tags Sugeridas**: Sistema sugere tags mais utilizadas
+
+### 📁 Navegação de Arquivos
+- **Ver Caminho**: Clique direito → "📁 Mostrar Caminho"
+- **Abrir Pasta**: Clique direito → "🗂️ Abrir Pasta"
+- **Funciona em**: Windows (Explorer), macOS (Finder), Linux (gerenciador padrão)
+
+### 🔍 Filtros Avançados
+- **Por Estrelas**: Filtre músicas com 5⭐, 4⭐, etc.
+- **Por Tags**: Mostre apenas músicas com tags específicas
+- **Combinados**: Use ambos os filtros simultaneamente
+- **Tempo Real**: Resultados aparecem instantaneamente
+
+### ⚡ Dicas de Produtividade
+- **Atalhos**: Use clique direito para acesso rápido
+- **Multi-seleção**: Selecione várias músicas na árvore para operações em lote
+- **Estado Persistente**: Feche e reabra - o progresso é mantido
+- **Skip Inteligente**: Use "Skip" para pular temporariamente durante comparações
 
 ## 🧪 Desenvolvimento
 
