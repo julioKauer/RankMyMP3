@@ -111,3 +111,4 @@ test_music/
 *.m4a
 *.ogg
 *.aac
+dev.sh

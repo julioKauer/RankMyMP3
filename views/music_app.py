@@ -255,6 +255,7 @@ class MusicApp(wx.Frame):
         # Bind eventos
         self.analysis_filter_text.Bind(wx.EVT_TEXT, self.on_analysis_filter_changed)
         self.analysis_filter_text.Bind(wx.EVT_TEXT_ENTER, self.on_analysis_filter_changed)
+        self.analysis_filter_text.Bind(wx.EVT_KILL_FOCUS, self.on_analysis_filter_changed)
         self.clear_analysis_filter_btn.Bind(wx.EVT_BUTTON, self.on_clear_analysis_filter)
 
     def _setup_comparison_panel(self):
@@ -1508,7 +1509,13 @@ class MusicApp(wx.Frame):
 
     def on_analysis_filter_changed(self, event):
         """Chamado quando o filtro de análise muda."""
-        self.analysis_filter_active = self.analysis_filter_text.GetValue()
+        # Obter valor diretamente e aplicar imediatamente
+        filter_value = self.analysis_filter_text.GetValue()
+        
+        if hasattr(self, 'analysis_filter_active') and self.analysis_filter_active == filter_value:
+            return  # Evitar atualizações desnecessárias
+        
+        self.analysis_filter_active = filter_value
         self.update_analysis_tree()
 
     def on_clear_analysis_filter(self, event):

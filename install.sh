@@ -49,11 +49,19 @@ fi
 
 echo "📦 Instalando dependências..."
 
-# Tentar usar pip3 primeiro, depois pip
+# Forçar instalação da versão mais recente do wxPython
 if command -v pip3 &> /dev/null; then
-    pip3 install wxpython send2trash
+    pip3 install --user --upgrade wxpython send2trash
+    if [ $? -ne 0 ]; then
+        echo "⚠️  Tentando instalação com sudo..."
+        sudo pip3 install --upgrade wxpython send2trash
+    fi
 elif command -v pip &> /dev/null; then
-    pip install wxpython send2trash
+    pip install --user --upgrade wxpython send2trash
+    if [ $? -ne 0 ]; then
+        echo "⚠️  Tentando instalação com sudo..."
+        sudo pip install --upgrade wxpython send2trash
+    fi
 else
     echo "❌ pip não encontrado!"
     exit 1
