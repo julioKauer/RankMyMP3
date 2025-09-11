@@ -1,13 +1,30 @@
 import wx
 import os
 from controllers.music_controller import MusicController
+from utils.window_settings import WindowSettings
 
 
 class MusicApp(wx.Frame):
     def __init__(self, music_controller: MusicController):
-        super().__init__(parent=None, title='RankMyMP3', size=(1200, 700))
+        # Inicializar gerenciador de configurações da janela
+        self.window_settings = WindowSettings()
+        
+        # Carregar configurações salvas ou usar padrão
+        saved_settings = self.window_settings.load_window_settings()
+        if saved_settings:
+            size = tuple(saved_settings['size'])
+            pos = tuple(saved_settings['position'])
+        else:
+            size = (1200, 700)
+            pos = (100, 100)
+        
+        super().__init__(parent=None, title='RankMyMP3', size=size, pos=pos)
 
         self.controller = music_controller
+
+        # Aplicar configurações da janela (incluindo maximização)
+        if saved_settings:
+            self.window_settings.apply_window_settings(self, saved_settings)
 
         # Criar o painel principal
         self.panel = wx.Panel(self)
@@ -49,6 +66,7 @@ class MusicApp(wx.Frame):
         self._setup_toolbar()
         self._setup_statusbar()
         self._setup_tree_events()
+        self._setup_window_events()
 
         # Atualizar as listas
         self.update_analysis_tree()
@@ -446,6 +464,11 @@ class MusicApp(wx.Frame):
         
         # Clique direito na lista de ranking para menu contextual
         self.ranking_list.Bind(wx.EVT_LIST_ITEM_RIGHT_CLICK, self.on_ranking_right_click)
+
+    def _setup_window_events(self):
+        """Configura eventos da janela."""
+        # Evento de fechamento para salvar configurações
+        self.Bind(wx.EVT_CLOSE, self.on_window_close)
 
     def start_auto_comparison(self):
         """Inicia comparação automática - chamado na inicialização."""
@@ -915,6 +938,17 @@ class MusicApp(wx.Frame):
     def on_exit(self, event):
         """Sai da aplicação."""
         self.Close()
+
+    def on_window_close(self, event):
+        """Salva configurações da janela antes de fechar."""
+        try:
+            # Salvar configurações da janela
+            self.window_settings.save_window_settings(self)
+        except Exception as e:
+            print(f"Erro ao salvar configurações: {e}")
+        finally:
+            # Permitir que a janela feche normalmente
+            event.Skip()
 
     # ===================== NOVOS MÉTODOS PARA TAGS E FILTROS =====================
 

@@ -34,6 +34,7 @@ Sistema inteligente de ranking de músicas usando comparações diretas e busca 
 - **Lista de Ranking**: Veja o ranking final ordenado por estrelas
 - **Menus Contextuais**: Clique direito para acessar todas as funcionalidades
 - **Filtros em Tempo Real**: Veja resultados instantaneamente
+- **Persistência de Janela**: Tamanho e posição da janela são salvos automaticamente
 
 ### 🔄 Gerenciamento de Estado
 - **Auto-save**: Progresso salvo automaticamente
@@ -151,11 +152,12 @@ start htmlcov/index.html # Windows
 ```
 
 ### Estrutura de testes:
-- **141 testes** cobrindo todo o sistema
+- **244 testes** cobrindo todo o sistema
 - **92%+ de cobertura** de código
 - Testes unitários, de integração e edge cases
 - Testes de regressão para bugs conhecidos
 - Testes de workflows completos de usuário
+- Testes de persistência de configurações
 
 ### Tipos de teste:
 - **Unitários**: `tests/test_models/`, `tests/test_controllers/`, `tests/test_utils/`
