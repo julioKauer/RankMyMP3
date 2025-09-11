@@ -615,6 +615,9 @@ class MusicApp(wx.Frame):
         # Clique direito na árvore para menu contextual
         self.analysis_tree.Bind(wx.EVT_TREE_ITEM_RIGHT_CLICK, self.on_tree_right_click)
         
+        # Eventos de seleção da árvore para forçar fonte legível
+        self.analysis_tree.Bind(wx.EVT_TREE_SEL_CHANGED, self.on_tree_sel_changed)
+        
         # Clique direito na lista de ranking para menu contextual
         self.ranking_list.Bind(wx.EVT_LIST_ITEM_RIGHT_CLICK, self.on_ranking_right_click)
         
@@ -658,6 +661,46 @@ class MusicApp(wx.Frame):
         self.ranking_list.SetItemTextColour(item_index, default_color)
         self.ranking_list.RefreshItem(item_index)
         event.Skip()
+
+    def on_tree_sel_changed(self, event):
+        """Gerencia seleção da árvore para aplicar fonte legível."""
+        # Restaurar cor padrão do item anteriormente selecionado se disponível
+        try:
+            old_item = event.GetOldItem()
+            if old_item and old_item.IsOk():
+                default_color = wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOWTEXT)
+                self.analysis_tree.SetItemTextColour(old_item, default_color)
+        except AttributeError:
+            # GetOldItem pode não estar disponível em todas as versões
+            pass
+        
+        # Aplicar cor legível ao novo item selecionado
+        new_item = event.GetItem()
+        if new_item and new_item.IsOk():
+            # Deixar o sistema aplicar suas cores primeiro
+            event.Skip()
+            
+            # Depois forçar apenas cor de fonte para legibilidade
+            wx.CallAfter(self._force_readable_text_tree, new_item)
+        else:
+            event.Skip()
+
+    def _force_readable_text_tree(self, tree_item):
+        """Força cor de texto contrastante na árvore para garantir legibilidade na seleção."""
+        try:
+            # Se tema escuro, usar branco; se claro, usar preto
+            if self.is_dark_theme:
+                text_color = wx.Colour(255, 255, 255)  # Branco para tema escuro
+            else:
+                text_color = wx.Colour(0, 0, 0)        # Preto para tema claro
+            
+            # Aplicar cor múltiplas vezes para garantir que seja aplicada
+            for _ in range(3):
+                self.analysis_tree.SetItemTextColour(tree_item, text_color)
+                self.analysis_tree.Refresh()
+                wx.SafeYield()
+        except:
+            pass
 
     def _setup_window_events(self):
         """Configura eventos da janela."""
