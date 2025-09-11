@@ -149,6 +149,53 @@ class MusicModel:
         # Retornar como uma lista de dicionários
         return [{'id': row[0], 'path': row[1], 'stars': row[2]} for row in results]
 
+    def get_filtered_musics_multi_tags(self, tags_list=None, min_stars=None, max_stars=None):
+        """
+        Retorna músicas filtradas por múltiplas tags (lógica AND) e quantidade de estrelas.
+        Todas as tags da lista devem estar associadas à música.
+        """
+        cursor = self.conn.cursor()
+        
+        if not tags_list:
+            # Se não há tags especificadas, usar o método original
+            return self.get_filtered_musics(tag_filter=None, min_stars=min_stars, max_stars=max_stars)
+        
+        # Construir consulta para múltiplas tags com lógica AND
+        query = '''
+            SELECT m.id, m.path, m.stars FROM music m
+            WHERE m.stars > -1
+        '''
+        params = []
+        
+        # Para cada tag, verificar se a música tem essa tag
+        for i, tag in enumerate(tags_list):
+            query += f'''
+                AND EXISTS (
+                    SELECT 1 FROM music_tags mt
+                    JOIN tags t ON t.id = mt.tag_id
+                    WHERE mt.music_id = m.id AND t.name = ?
+                )
+            '''
+            params.append(tag)
+        
+        # Adicionar filtro por estrelas, se necessário
+        if min_stars is not None:
+            query += ' AND m.stars >= ?'
+            params.append(min_stars)
+        if max_stars is not None:
+            query += ' AND m.stars <= ?'
+            params.append(max_stars)
+        
+        # Ordenar por estrelas em ordem decrescente
+        query += ' ORDER BY m.stars DESC'
+        
+        # Executar a consulta
+        cursor.execute(query, params)
+        results = cursor.fetchall()
+        
+        # Retornar como uma lista de dicionários
+        return [{'id': row[0], 'path': row[1], 'stars': row[2]} for row in results]
+
     def add_tag(self, tag_name):
         cursor = self.conn.cursor()
         cursor.execute('INSERT OR IGNORE INTO tags (name) VALUES (?)', (tag_name,))

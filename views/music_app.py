@@ -53,10 +53,6 @@ class MusicApp(wx.Frame):
         # Atualizar as listas
         self.update_analysis_tree()
         self.update_ranking_list()
-        
-        # Popular o filtro de tags
-        if hasattr(self, 'tags_filter'):
-            self.populate_tags_filter()
 
         # Iniciar primeira comparação automaticamente
         wx.CallAfter(self.start_auto_comparison)
@@ -119,42 +115,90 @@ class MusicApp(wx.Frame):
         """Configura o painel de filtros para estrelas e tags."""
         self.filter_panel = wx.Panel(self.right_panel)
         
-        # Layout horizontal para filtros
-        filter_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        # Layout vertical principal para filtros
+        main_filter_sizer = wx.BoxSizer(wx.VERTICAL)
+        
+        # === LINHA 1: Filtros básicos (horizontal) ===
+        basic_filter_sizer = wx.BoxSizer(wx.HORIZONTAL)
         
         # Filtro por estrelas
-        filter_sizer.Add(wx.StaticText(self.filter_panel, label="⭐ Estrelas:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
+        basic_filter_sizer.Add(wx.StaticText(self.filter_panel, label="⭐ Estrelas:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
         
         self.stars_filter = wx.Choice(self.filter_panel, choices=[
             "Todas", "⭐⭐⭐⭐⭐ (5)", "⭐⭐⭐⭐☆ (4)", "⭐⭐⭐☆☆ (3)", "⭐⭐☆☆☆ (2)", "⭐☆☆☆☆ (1)"
         ])
         self.stars_filter.SetSelection(0)  # "Todas" por padrão
-        filter_sizer.Add(self.stars_filter, 0, wx.ALL, 5)
+        basic_filter_sizer.Add(self.stars_filter, 0, wx.ALL, 5)
         
         # Espaçador
-        filter_sizer.Add(wx.StaticLine(self.filter_panel, style=wx.LI_VERTICAL), 0, wx.EXPAND | wx.ALL, 5)
+        basic_filter_sizer.Add(wx.StaticLine(self.filter_panel, style=wx.LI_VERTICAL), 0, wx.EXPAND | wx.ALL, 5)
         
-        # Filtro por tags
-        filter_sizer.Add(wx.StaticText(self.filter_panel, label="🏷️ Tags:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
+        # Botão para expandir/recolher filtro de tags
+        self.expand_tags_btn = wx.Button(self.filter_panel, label="🔽 Filtrar por Tags")
+        self.expand_tags_btn.SetMinSize((130, -1))
+        basic_filter_sizer.Add(self.expand_tags_btn, 0, wx.ALL, 5)
         
-        # Usar ComboBox com dropdown para tags
-        self.tags_filter = wx.ComboBox(self.filter_panel, style=wx.CB_READONLY)
-        self.tags_filter.Append("Todas as Tags")
-        self.tags_filter.SetSelection(0)  # "Todas as Tags" por padrão
-        self.populate_tags_filter()  # Carregar tags disponíveis
-        filter_sizer.Add(self.tags_filter, 0, wx.ALL, 5)
+        # Contador de filtros ativos (quando recolhido)
+        self.filter_summary_label = wx.StaticText(self.filter_panel, label="")
+        basic_filter_sizer.Add(self.filter_summary_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
         
         # Botão limpar filtros
         self.clear_filters_btn = wx.Button(self.filter_panel, label="❌ Limpar")
         self.clear_filters_btn.SetMinSize((80, -1))
-        filter_sizer.Add(self.clear_filters_btn, 0, wx.ALL, 5)
+        basic_filter_sizer.Add(self.clear_filters_btn, 0, wx.ALL, 5)
         
-        self.filter_panel.SetSizer(filter_sizer)
+        main_filter_sizer.Add(basic_filter_sizer, 0, wx.EXPAND)
+        
+        # === LINHA 2: Painel expansível para tags ===
+        self.tags_panel = wx.Panel(self.filter_panel)
+        self.tags_panel.Hide()  # Inicialmente oculto
+        
+        # Layout para o painel de tags
+        tags_sizer = wx.BoxSizer(wx.VERTICAL)
+        
+        # Cabeçalho do painel expandido
+        header_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        header_sizer.Add(wx.StaticText(self.tags_panel, label="🏷️ Selecionar tags (AND - música deve ter TODAS):"), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
+        
+        # Botões de controle
+        self.select_all_tags_btn = wx.Button(self.tags_panel, label="✅ Todas", size=(70, -1))
+        self.clear_all_tags_btn = wx.Button(self.tags_panel, label="❌ Nenhuma", size=(80, -1))
+        header_sizer.Add(self.select_all_tags_btn, 0, wx.ALL, 3)
+        header_sizer.Add(self.clear_all_tags_btn, 0, wx.ALL, 3)
+        
+        # Contador de músicas filtradas
+        self.filtered_count_label = wx.StaticText(self.tags_panel, label="")
+        header_sizer.Add(self.filtered_count_label, 1, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
+        
+        tags_sizer.Add(header_sizer, 0, wx.EXPAND)
+        
+        # Painel scrollável para checkboxes das tags
+        self.tags_scroll_panel = wx.ScrolledWindow(self.tags_panel, style=wx.BORDER_SUNKEN)
+        self.tags_scroll_panel.SetScrollRate(5, 5)
+        self.tags_scroll_panel.SetMinSize((-1, 100))
+        self.tags_scroll_panel.SetMaxSize((-1, 150))
+        
+        # Sizer para os checkboxes (será populado dinamicamente)
+        self.tags_checkboxes_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.tags_scroll_panel.SetSizer(self.tags_checkboxes_sizer)
+        
+        tags_sizer.Add(self.tags_scroll_panel, 1, wx.EXPAND | wx.ALL, 5)
+        
+        self.tags_panel.SetSizer(tags_sizer)
+        main_filter_sizer.Add(self.tags_panel, 0, wx.EXPAND)
+        
+        self.filter_panel.SetSizer(main_filter_sizer)
+        
+        # Inicializar variáveis
+        self.tag_checkboxes = []
+        self.tags_expanded = False
         
         # Bind eventos dos filtros
         self.stars_filter.Bind(wx.EVT_CHOICE, self.on_filter_changed)
-        self.tags_filter.Bind(wx.EVT_COMBOBOX, self.on_filter_changed)
         self.clear_filters_btn.Bind(wx.EVT_BUTTON, self.on_clear_filters)
+        self.expand_tags_btn.Bind(wx.EVT_BUTTON, self.on_toggle_tags_panel)
+        self.select_all_tags_btn.Bind(wx.EVT_BUTTON, self.on_select_all_tags)
+        self.clear_all_tags_btn.Bind(wx.EVT_BUTTON, self.on_clear_all_tags)
 
     def _setup_comparison_panel(self):
         """Configura o painel de comparação - sempre visível e compacto."""
@@ -355,12 +399,10 @@ class MusicApp(wx.Frame):
         self.ranking_list.DeleteAllItems()
         
         # Verificar se há filtros ativos
-        has_filters = (
-            hasattr(self, 'stars_filter') and self.stars_filter.GetSelection() > 0 or
-            hasattr(self, 'tags_filter') and self.tags_filter.GetSelection() > 0
-        )
+        has_star_filter = hasattr(self, 'stars_filter') and self.stars_filter.GetSelection() > 0
+        has_tag_filter = len(self.get_selected_tags()) > 0
         
-        if has_filters:
+        if has_star_filter or has_tag_filter:
             # Usar músicas filtradas
             filtered_musics = self.get_filtered_musics()
             musics_to_show = filtered_musics
@@ -878,46 +920,172 @@ class MusicApp(wx.Frame):
 
     def on_filter_changed(self, event):
         """Atualiza a lista quando os filtros mudam."""
+        self.update_filter_summary()
         self.update_ranking_list()
 
     def on_clear_filters(self, event):
         """Limpa todos os filtros."""
         self.stars_filter.SetSelection(0)  # "Todas"
-        self.tags_filter.SetSelection(0)   # "Todas as Tags"
+        
+        # Limpar checkboxes de tags se existirem
+        if hasattr(self, 'tag_checkboxes'):
+            for checkbox in self.tag_checkboxes:
+                checkbox.SetValue(False)
+            self.update_filtered_count()
+            self.update_filter_summary()
+        
         self.update_ranking_list()
 
-    def populate_tags_filter(self):
-        """Popula o filtro de tags com as tags disponíveis no banco."""
+    def populate_tags_checkboxes(self):
+        """Popula os checkboxes de tags."""
         try:
-            # Limpar itens existentes (exceto "Todas as Tags")
-            while self.tags_filter.GetCount() > 1:
-                self.tags_filter.Delete(1)
+            # Limpar checkboxes existentes
+            for checkbox in self.tag_checkboxes:
+                checkbox.Destroy()
+            self.tag_checkboxes.clear()
             
             # Obter todas as tags do banco
             all_tags = self.controller.music_model.get_all_tags()
             
-            # Adicionar cada tag ao filtro
+            # Criar checkbox para cada tag
             for tag in sorted(all_tags):
-                self.tags_filter.Append(tag)
+                checkbox = wx.CheckBox(self.tags_scroll_panel, label=tag)
+                checkbox.Bind(wx.EVT_CHECKBOX, self.on_tag_checkbox_changed)
+                self.tag_checkboxes.append(checkbox)
+                self.tags_checkboxes_sizer.Add(checkbox, 0, wx.ALL, 3)
+            
+            # Atualizar layout
+            self.tags_scroll_panel.FitInside()
+            self.tags_scroll_panel.Layout()
+            
+        except Exception as e:
+            print(f"Erro ao carregar checkboxes de tags: {e}")
+
+    def on_toggle_tags_panel(self, event):
+        """Expande/recolhe o painel de tags."""
+        self.tags_expanded = not self.tags_expanded
+        
+        if self.tags_expanded:
+            # Expandir
+            self.tags_panel.Show()
+            self.expand_tags_btn.SetLabel("🔼 Ocultar Tags")
+            self.populate_tags_checkboxes()
+            self.update_filter_summary()
+        else:
+            # Recolher
+            self.tags_panel.Hide()
+            self.expand_tags_btn.SetLabel("🔽 Filtrar por Tags")
+            
+            # Limpar seleções de tags
+            for checkbox in self.tag_checkboxes:
+                checkbox.SetValue(False)
+            self.update_filter_summary()
+        
+        # Atualizar layout e aplicar filtros
+        self.filter_panel.Layout()
+        self.filter_panel.GetParent().Layout()
+        self.on_filter_changed(event)
+
+    def on_select_all_tags(self, event):
+        """Seleciona todas as tags nos checkboxes."""
+        for checkbox in self.tag_checkboxes:
+            checkbox.SetValue(True)
+        self.update_filtered_count()
+        self.update_filter_summary()
+        self.on_filter_changed(event)
+
+    def on_clear_all_tags(self, event):
+        """Limpa todas as seleções de tags nos checkboxes."""
+        for checkbox in self.tag_checkboxes:
+            checkbox.SetValue(False)
+        self.update_filtered_count()
+        self.update_filter_summary()
+        self.on_filter_changed(event)
+
+    def on_tag_checkbox_changed(self, event):
+        """Chamado quando um checkbox de tag é alterado."""
+        self.update_filtered_count()
+        self.update_filter_summary()
+        self.on_filter_changed(event)
+
+    def get_selected_tags(self):
+        """Retorna lista de tags selecionadas nos checkboxes."""
+        if not hasattr(self, 'tags_expanded') or not self.tags_expanded:
+            return []
+        
+        selected_tags = []
+        for checkbox in self.tag_checkboxes:
+            if checkbox.GetValue():
+                selected_tags.append(checkbox.GetLabel())
+        return selected_tags
+
+    def update_filtered_count(self):
+        """Atualiza o contador de músicas filtradas."""
+        if not hasattr(self, 'tags_expanded') or not self.tags_expanded:
+            self.filtered_count_label.SetLabel("")
+            return
+            
+        try:
+            # Obter filtros ativos
+            selected_tags = self.get_selected_tags()
+            min_stars, max_stars = self._get_stars_filter_range()
+            
+            # Contar músicas que correspondem aos filtros
+            if selected_tags:
+                filtered_musics = self.controller.music_model.get_filtered_musics_multi_tags(
+                    tags_list=selected_tags,
+                    min_stars=min_stars,
+                    max_stars=max_stars
+                )
+                count = len(filtered_musics)
+                tags_text = f"{len(selected_tags)} tag{'s' if len(selected_tags) != 1 else ''}"
+                self.filtered_count_label.SetLabel(f"📊 {count} música{'s' if count != 1 else ''} com {tags_text}")
+            else:
+                self.filtered_count_label.SetLabel("📊 Selecione tags para filtrar")
                 
         except Exception as e:
-            print(f"Erro ao carregar tags: {e}")
+            print(f"Erro ao contar músicas filtradas: {e}")
+            self.filtered_count_label.SetLabel("")
+
+    def update_filter_summary(self):
+        """Atualiza o resumo dos filtros quando o painel está recolhido."""
+        if hasattr(self, 'tags_expanded') and self.tags_expanded:
+            # Se expandido, não mostrar resumo
+            self.filter_summary_label.SetLabel("")
+            return
+            
+        # Contar filtros ativos
+        selected_tags = self.get_selected_tags()
+        has_star_filter = hasattr(self, 'stars_filter') and self.stars_filter.GetSelection() > 0
+        
+        summary_parts = []
+        
+        if has_star_filter:
+            stars_text = self.stars_filter.GetStringSelection()
+            summary_parts.append(f"⭐ {stars_text}")
+        
+        if selected_tags:
+            summary_parts.append(f"🏷️ {len(selected_tags)} tag{'s' if len(selected_tags) != 1 else ''}")
+        
+        if summary_parts:
+            self.filter_summary_label.SetLabel(f"Filtros: {' + '.join(summary_parts)}")
+        else:
+            self.filter_summary_label.SetLabel("")
 
     def refresh_tags_filter(self):
-        """Atualiza o filtro de tags (chamado após mudanças nas tags)."""
-        current_selection = self.tags_filter.GetSelection()
-        current_value = self.tags_filter.GetStringSelection() if current_selection >= 0 else ""
-        
-        # Repopular
-        self.populate_tags_filter()
-        
-        # Tentar restaurar seleção
-        if current_value:
-            new_index = self.tags_filter.FindString(current_value)
-            if new_index != wx.NOT_FOUND:
-                self.tags_filter.SetSelection(new_index)
-            else:
-                self.tags_filter.SetSelection(0)  # "Todas as Tags"
+        """Atualiza os checkboxes de tags (chamado após mudanças nas tags)."""
+        if hasattr(self, 'tags_expanded') and self.tags_expanded:
+            # Se o painel de tags estiver expandido, repopular
+            selected_tags_before = self.get_selected_tags()
+            self.populate_tags_checkboxes()
+            
+            # Tentar restaurar seleções anteriores
+            for checkbox in self.tag_checkboxes:
+                if checkbox.GetLabel() in selected_tags_before:
+                    checkbox.SetValue(True)
+            
+            self.update_filtered_count()
+            self.update_filter_summary()
 
     def on_manage_tags(self, music_id, music_name):
         """Abre dialog para gerenciar tags de uma música."""
@@ -1089,27 +1257,35 @@ class MusicApp(wx.Frame):
 
     def get_filtered_musics(self):
         """Retorna músicas filtradas pelos critérios atuais."""
-        # Obter critérios de filtro
+        # Obter tags selecionadas e filtro de estrelas
+        selected_tags = self.get_selected_tags()
+        min_stars, max_stars = self._get_stars_filter_range()
+        
+        # Se há tags selecionadas, usar filtro de múltiplas tags
+        if selected_tags:
+            return self.controller.music_model.get_filtered_musics_multi_tags(
+                tags_list=selected_tags,
+                min_stars=min_stars,
+                max_stars=max_stars
+            )
+        else:
+            # Se não há tags, usar filtro tradicional apenas por estrelas
+            return self.controller.music_model.get_filtered_musics(
+                tag_filter=None,
+                min_stars=min_stars,
+                max_stars=max_stars
+            )
+
+    def _get_stars_filter_range(self):
+        """Retorna o range de estrelas baseado na seleção atual."""
         stars_selection = self.stars_filter.GetSelection()
-        tags_selection = self.tags_filter.GetSelection()
         
-        # Determinar filtro de estrelas
-        stars_filter = None
-        if stars_selection > 0:  # Não é "Todas"
+        if stars_selection == 0:  # "Todas"
+            return None, None
+        else:
             # Mapear índice para número de estrelas (5, 4, 3, 2, 1)
-            stars_filter = 6 - stars_selection
-        
-        # Determinar filtro de tags
-        tags_filter = None
-        if tags_selection > 0:  # Não é "Todas as Tags"
-            tags_filter = self.tags_filter.GetStringSelection()
-        
-        # Usar o método do modelo para filtrar
-        return self.controller.music_model.get_filtered_musics(
-            tag_filter=tags_filter,
-            min_stars=stars_filter,
-            max_stars=stars_filter
-        )
+            stars_value = 6 - stars_selection
+            return stars_value, stars_value
 
 
 class TagsDialog(wx.Dialog):
