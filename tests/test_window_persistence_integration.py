@@ -30,19 +30,20 @@ class TestWindowPersistenceIntegration:
     
     def test_window_settings_file_creation_and_loading(self):
         """Testa criação e carregamento real do arquivo de configuração."""
-        from utils.window_settings import WindowSettings
+        from utils.window_settings import AppSettings
         
         # Usar arquivo temporário
-        settings = WindowSettings(config_file=self.temp_file.name)
-        
-        # Simular dados de janela
-        test_data = {
-            'position': [150, 250],
-            'size': [900, 700],
-            'maximized': True
-        }
+        settings = AppSettings(config_file=self.temp_file.name)
         
         # Salvar diretamente no arquivo (simulando salvamento da aplicação)
+        test_data = {
+            'window': {
+                'position': [150, 250],
+                'size': [900, 700],
+                'maximized': True
+            }
+        }
+        
         with open(self.temp_file.name, 'w') as f:
             json.dump(test_data, f, indent=2)
         
@@ -50,13 +51,13 @@ class TestWindowPersistenceIntegration:
         loaded_data = settings.load_window_settings()
         
         # Verificar se os dados são idênticos
-        assert loaded_data == test_data
+        assert loaded_data == test_data['window']
     
     def test_window_settings_with_invalid_data_fallback(self):
         """Testa fallback para dados padrão quando configuração é inválida."""
-        from utils.window_settings import WindowSettings
+        from utils.window_settings import AppSettings
         
-        settings = WindowSettings(config_file=self.temp_file.name)
+        settings = AppSettings(config_file=self.temp_file.name)
         
         # Criar arquivo com dados inválidos
         with open(self.temp_file.name, 'w') as f:
@@ -67,31 +68,31 @@ class TestWindowPersistenceIntegration:
         assert loaded_data is None
         
         # Configurações padrão devem estar disponíveis
-        default_data = settings.get_default_settings()
+        default_data = settings.get_default_window_settings()
         assert default_data['position'] == [100, 100]
         assert default_data['size'] == [1200, 700]
         assert default_data['maximized'] == False
     
     def test_window_config_file_in_correct_location(self):
         """Testa se o arquivo de configuração é criado no local correto."""
-        from utils.window_settings import WindowSettings
+        from utils.window_settings import AppSettings
         
         # Usar nome padrão do arquivo
-        settings = WindowSettings()
+        settings = AppSettings()
         
         # Verificar que o caminho é construído corretamente
         expected_path = os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "window_config.json"
+            "app_config.json"
         )
         
         assert settings.config_path == expected_path
     
     def test_window_settings_validation_edge_cases(self):
         """Testa validação com casos extremos."""
-        from utils.window_settings import WindowSettings
+        from utils.window_settings import AppSettings
         
-        settings = WindowSettings(config_file=self.temp_file.name)
+        settings = AppSettings(config_file=self.temp_file.name)
         
         # Testes com valores extremos mas válidos
         edge_cases = [
@@ -109,13 +110,15 @@ class TestWindowPersistenceIntegration:
         ]
         
         for case in edge_cases:
-            assert settings._validate_settings(case) == True
+            # Testar no formato novo (com seção window)
+            window_config = {'window': case}
+            assert settings._validate_all_settings(window_config) == True
     
     def test_window_settings_validation_invalid_cases(self):
         """Testa validação com casos definitivamente inválidos."""
-        from utils.window_settings import WindowSettings
+        from utils.window_settings import AppSettings
         
-        settings = WindowSettings(config_file=self.temp_file.name)
+        settings = AppSettings(config_file=self.temp_file.name)
         
         # Casos que devem falhar na validação
         invalid_cases = [
@@ -135,13 +138,15 @@ class TestWindowPersistenceIntegration:
         ]
         
         for case in invalid_cases:
-            assert settings._validate_settings(case) == False
+            # Testar no formato novo (com seção window)
+            window_config = {'window': case}
+            assert settings._validate_all_settings(window_config) == False
     
     def test_config_file_permissions_and_encoding(self):
         """Testa se o arquivo é criado com permissões e encoding corretos."""
-        from utils.window_settings import WindowSettings
+        from utils.window_settings import AppSettings
         
-        settings = WindowSettings(config_file=self.temp_file.name)
+        settings = AppSettings(config_file=self.temp_file.name)
         
         # Mock do frame para salvar
         mock_frame = Mock()
@@ -159,15 +164,16 @@ class TestWindowPersistenceIntegration:
         # Verificar se pode ser lido com encoding UTF-8
         with open(self.temp_file.name, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            assert 'position' in data
-            assert 'size' in data
+            assert 'window' in data
+            assert 'position' in data['window']
+            assert 'size' in data['window']
     
     def test_window_settings_concurrent_access(self):
         """Testa acesso concorrente ao arquivo de configuração."""
-        from utils.window_settings import WindowSettings
+        from utils.window_settings import AppSettings
         
-        settings1 = WindowSettings(config_file=self.temp_file.name)
-        settings2 = WindowSettings(config_file=self.temp_file.name)
+        settings1 = AppSettings(config_file=self.temp_file.name)
+        settings2 = AppSettings(config_file=self.temp_file.name)
         
         # Mock do frame
         mock_frame = Mock()
@@ -188,15 +194,17 @@ class TestWindowPersistenceIntegration:
     
     def test_memory_usage_with_large_settings(self):
         """Testa uso de memória com configurações grandes."""
-        from utils.window_settings import WindowSettings
+        from utils.window_settings import AppSettings
         
-        settings = WindowSettings(config_file=self.temp_file.name)
+        settings = AppSettings(config_file=self.temp_file.name)
         
         # Criar configuração com dados adicionais (simulando expansão futura)
         large_settings = {
-            'position': [500, 600],
-            'size': [1200, 900],
-            'maximized': False,
+            'window': {
+                'position': [500, 600],
+                'size': [1200, 900],
+                'maximized': False
+            },
             # Adicionar dados extras que poderiam ser ignorados
             'extra_data': ['a' * 1000] * 100,  # Lista grande
             'nested_data': {'level1': {'level2': {'level3': 'deep_value'}}},
@@ -208,12 +216,12 @@ class TestWindowPersistenceIntegration:
             json.dump(large_settings, f)
         
         # Carregar e validar - deve ser rápido e não vazar memória
-        loaded_data = settings.load_window_settings()
+        loaded_data = settings.load_settings()
         
         # Verificar se carregou corretamente (com validação dos campos necessários)
-        assert loaded_data['position'] == [500, 600]
-        assert loaded_data['size'] == [1200, 900]
-        assert loaded_data['maximized'] == False
+        assert loaded_data['window']['position'] == [500, 600]
+        assert loaded_data['window']['size'] == [1200, 900]
+        assert loaded_data['window']['maximized'] == False
         
         # Verificar que validação ainda funciona
-        assert settings._validate_settings(loaded_data) == True
+        assert settings._validate_all_settings(loaded_data) == True

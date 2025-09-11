@@ -1,19 +1,19 @@
 import wx
 import os
 from controllers.music_controller import MusicController
-from utils.window_settings import WindowSettings
+from utils.window_settings import AppSettings
 
 
 class MusicApp(wx.Frame):
     def __init__(self, music_controller: MusicController):
-        # Inicializar gerenciador de configurações da janela
-        self.window_settings = WindowSettings()
+        # Inicializar gerenciador de configurações da aplicação
+        self.app_settings = AppSettings()
         
         # Carregar configurações salvas ou usar padrão
-        saved_settings = self.window_settings.load_window_settings()
-        if saved_settings:
-            size = tuple(saved_settings['size'])
-            pos = tuple(saved_settings['position'])
+        saved_window_settings = self.app_settings.load_window_settings()
+        if saved_window_settings:
+            size = tuple(saved_window_settings['size'])
+            pos = tuple(saved_window_settings['position'])
         else:
             size = (1200, 700)
             pos = (100, 100)
@@ -23,8 +23,8 @@ class MusicApp(wx.Frame):
         self.controller = music_controller
 
         # Aplicar configurações da janela (incluindo maximização)
-        if saved_settings:
-            self.window_settings.apply_window_settings(self, saved_settings)
+        if saved_window_settings:
+            self.app_settings.apply_window_settings(self, saved_window_settings)
 
         # Criar o painel principal
         self.panel = wx.Panel(self)
@@ -71,6 +71,9 @@ class MusicApp(wx.Frame):
         # Atualizar as listas
         self.update_analysis_tree()
         self.update_ranking_list()
+
+        # Aplicar configurações de layout salvas
+        self._apply_saved_layout_settings()
 
         # Iniciar primeira comparação automaticamente
         wx.CallAfter(self.start_auto_comparison)
@@ -469,6 +472,37 @@ class MusicApp(wx.Frame):
         """Configura eventos da janela."""
         # Evento de fechamento para salvar configurações
         self.Bind(wx.EVT_CLOSE, self.on_window_close)
+        
+        # Eventos para salvar configurações de layout em tempo real
+        self.ranking_list.Bind(wx.EVT_LIST_COL_END_DRAG, self.on_column_resize)
+        self.main_splitter.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGED, self.on_splitter_move)
+
+    def _apply_saved_layout_settings(self):
+        """Aplica configurações de layout salvas."""
+        try:
+            layout_settings = self.app_settings.load_layout_settings()
+            if layout_settings:
+                # Aplicar configurações ao ranking_list e main_splitter
+                self.app_settings.apply_layout_settings(
+                    self.ranking_list, 
+                    self.main_splitter, 
+                    layout_settings
+                )
+                
+                # Aplicar estado do painel de tags
+                if layout_settings.get('tags_panel_expanded', False):
+                    wx.CallAfter(self._restore_tags_panel_state)
+        except Exception as e:
+            print(f"Erro ao aplicar configurações de layout: {e}")
+    
+    def _restore_tags_panel_state(self):
+        """Restaura o estado expandido do painel de tags."""
+        try:
+            # Simular clique no botão para expandir
+            if not self.tags_panel.IsShown():
+                self.on_toggle_tags_panel(None)
+        except Exception as e:
+            print(f"Erro ao restaurar estado do painel de tags: {e}")
 
     def start_auto_comparison(self):
         """Inicia comparação automática - chamado na inicialização."""
@@ -940,15 +974,72 @@ class MusicApp(wx.Frame):
         self.Close()
 
     def on_window_close(self, event):
-        """Salva configurações da janela antes de fechar."""
+        """Salva todas as configurações antes de fechar."""
         try:
-            # Salvar configurações da janela
-            self.window_settings.save_window_settings(self)
+            # Coletar configurações de layout atuais
+            column_widths = [
+                self.ranking_list.GetColumnWidth(0),  # Posição
+                self.ranking_list.GetColumnWidth(1),  # Música
+                self.ranking_list.GetColumnWidth(2),  # Estrelas
+                self.ranking_list.GetColumnWidth(3)   # Tags
+            ]
+            
+            splitter_pos = self.main_splitter.GetSashPosition()
+            tags_expanded = self.tags_panel.IsShown()
+            
+            # Salvar todas as configurações de uma vez
+            self.app_settings.save_all_settings(
+                self, 
+                column_widths, 
+                splitter_pos, 
+                tags_expanded
+            )
         except Exception as e:
             print(f"Erro ao salvar configurações: {e}")
         finally:
             # Permitir que a janela feche normalmente
             event.Skip()
+
+    def on_column_resize(self, event):
+        """Salva larguras das colunas quando redimensionadas."""
+        try:
+            # Usar CallAfter para garantir que a largura já foi atualizada
+            wx.CallAfter(self._save_layout_settings)
+        except Exception as e:
+            print(f"Erro ao salvar largura das colunas: {e}")
+        finally:
+            event.Skip()
+    
+    def on_splitter_move(self, event):
+        """Salva posição do splitter quando movido."""
+        try:
+            # Usar CallAfter para garantir que a posição já foi atualizada
+            wx.CallAfter(self._save_layout_settings)
+        except Exception as e:
+            print(f"Erro ao salvar posição do splitter: {e}")
+        finally:
+            event.Skip()
+    
+    def _save_layout_settings(self):
+        """Salva apenas as configurações de layout."""
+        try:
+            column_widths = [
+                self.ranking_list.GetColumnWidth(0),
+                self.ranking_list.GetColumnWidth(1),
+                self.ranking_list.GetColumnWidth(2),
+                self.ranking_list.GetColumnWidth(3)
+            ]
+            
+            splitter_pos = self.main_splitter.GetSashPosition()
+            tags_expanded = self.tags_panel.IsShown()
+            
+            self.app_settings.save_layout_settings(
+                column_widths, 
+                splitter_pos, 
+                tags_expanded
+            )
+        except Exception as e:
+            print(f"Erro ao salvar configurações de layout: {e}")
 
     # ===================== NOVOS MÉTODOS PARA TAGS E FILTROS =====================
 
@@ -1019,6 +1110,9 @@ class MusicApp(wx.Frame):
         self.filter_panel.Layout()
         self.filter_panel.GetParent().Layout()
         self.on_filter_changed(event)
+        
+        # Salvar estado do painel de tags
+        wx.CallAfter(self._save_layout_settings)
 
     def on_select_all_tags(self, event):
         """Seleciona todas as tags nos checkboxes."""
