@@ -7,6 +7,12 @@ __pycache__/
 *.cache
 *.log
 
+# Coverage files
+.coverage
+.coverage.*
+htmlcov/
+*.cover
+
 # Database files
 *.sqlite3
 *.db
@@ -29,6 +35,19 @@ temp_*.py
 *_old.py
 *_broken.py
 migrate_*.py
+
+# Arquivos de teste temporários específicos (não confundir com tests/ oficiais)
+test_correction.py
+test_interface_*.py
+test_loop_*.py
+test_multiple_*.py
+test_skip_*.py
+*_new.py
+*_advanced.py
+*_private.py
+*_specific.py
+test_final_*.py
+test_ignore_*_simple.py
 
 # Arquivos temporários do sistema
 .DS_Store
