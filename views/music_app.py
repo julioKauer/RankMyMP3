@@ -586,7 +586,10 @@ class MusicApp(wx.Frame):
                 index = self.ranking_list.GetItemCount()
                 self.ranking_list.InsertItem(index, str(position))
                 self.ranking_list.SetItem(index, 1, os.path.basename(music['path']))
-                self.ranking_list.SetItem(index, 2, "★" * music['stars'])
+                
+                # Usar estrelas coloridas como no filtro
+                stars_display = self._get_colored_stars(music['stars'])
+                self.ranking_list.SetItem(index, 2, stars_display)
                 
                 # Adicionar tags na coluna 3
                 tags = self.controller.music_model.get_music_tags(music['id'])
@@ -594,6 +597,16 @@ class MusicApp(wx.Frame):
                 self.ranking_list.SetItem(index, 3, tags_text)
                 
                 # Usar cores padrão do sistema - sem aplicação manual de cores
+
+    def _get_colored_stars(self, stars_count):
+        """Retorna representação visual das estrelas usando emojis coloridos."""
+        if stars_count is None or stars_count <= 0:
+            return ""
+        
+        # Usar as mesmas estrelas do filtro para consistência visual
+        filled_stars = "⭐" * stars_count
+        empty_stars = "☆" * (5 - stars_count)
+        return filled_stars + empty_stars
 
     def update_lists(self):
         """Atualiza todas as listas - método de compatibilidade."""
