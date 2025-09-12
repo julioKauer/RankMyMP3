@@ -48,18 +48,6 @@ class MusicApp(wx.Frame):
 
         # Painel direito (ranking)
         self.right_panel = wx.Panel(self.main_splitter)
-        self.ranking_list = wx.ListCtrl(
-            self.right_panel,
-            style=wx.LC_REPORT  # Voltando com múltipla seleção
-        )
-        self.ranking_list.InsertColumn(0, "Posição")
-        self.ranking_list.InsertColumn(1, "Música")
-        self.ranking_list.InsertColumn(2, "Estrelas")
-        self.ranking_list.InsertColumn(3, "Tags")
-        self.ranking_list.SetColumnWidth(0, 70)
-        self.ranking_list.SetColumnWidth(1, 350)
-        self.ranking_list.SetColumnWidth(2, 100)
-        self.ranking_list.SetColumnWidth(3, 200)
 
         # Configurar cores personalizadas para melhor legibilidade
         self._setup_list_colors()
@@ -88,9 +76,15 @@ class MusicApp(wx.Frame):
         # Atualizar as listas
         self.update_analysis_tree()
         self.update_ranking_list()
+        
+        # Inicializar checkboxes de tags
+        self.populate_tags_checkboxes()
 
         # Aplicar configurações de layout salvas
         self._apply_saved_layout_settings()
+        
+        # Garantir que o botão tenha o estado correto após aplicar configurações
+        wx.CallAfter(self._ensure_button_state)
 
         # Iniciar primeira comparação automaticamente
         wx.CallAfter(self.start_auto_comparison)
@@ -187,15 +181,57 @@ class MusicApp(wx.Frame):
         left_sizer.Add(self.analysis_tree, 1, wx.EXPAND | wx.ALL, 5)
         self.left_panel.SetSizer(left_sizer)
 
-        # Layout do painel direito (ranking)
-        right_sizer = wx.BoxSizer(wx.VERTICAL)
-        right_sizer.Add(wx.StaticText(self.right_panel, label="🏆 Ranking Atual:"), 0, wx.ALL, 5)
+        # Layout do painel direito com splitter para redimensionar área de filtros/tags
+        self.right_splitter = wx.SplitterWindow(self.right_panel, style=wx.SP_3D | wx.SP_LIVE_UPDATE)
+        self.right_splitter.SetMinimumPaneSize(50)  # Tamanho mínimo para cada painel
         
-        # Adicionar barra de filtros
+        # Painel superior: título + filtros + tags (redimensionável)
+        self.right_top_panel = wx.Panel(self.right_splitter)
+        
+        # Painel inferior: lista de ranking
+        self.right_bottom_panel = wx.Panel(self.right_splitter)
+        
+        # === CONFIGURAR PAINEL SUPERIOR (FILTROS + TAGS) ===
+        right_top_sizer = wx.BoxSizer(wx.VERTICAL)
+        right_top_sizer.Add(wx.StaticText(self.right_top_panel, label="🏆 Ranking Atual:"), 0, wx.ALL, 5)
+        
+        # Adicionar filtros básicos
         self._setup_filter_panel()
-        right_sizer.Add(self.filter_panel, 0, wx.EXPAND | wx.ALL, 5)
+        right_top_sizer.Add(self.filter_panel, 0, wx.EXPAND | wx.ALL, 5)
         
-        right_sizer.Add(self.ranking_list, 1, wx.EXPAND | wx.ALL, 5)
+        # Área de tags redimensionável (sempre visível)
+        self._setup_tags_resizable_panel()
+        right_top_sizer.Add(self.tags_resizable_panel, 1, wx.EXPAND | wx.ALL, 5)
+        
+        self.right_top_panel.SetSizer(right_top_sizer)
+        
+        # === CONFIGURAR PAINEL INFERIOR (LISTA) ===
+        # Criar ranking_list no painel inferior
+        # === CONFIGURAR PAINEL INFERIOR (LISTA) ===
+        # Criar ranking_list no painel inferior
+        self.ranking_list = wx.ListCtrl(
+            self.right_bottom_panel,
+            style=wx.LC_REPORT  # Voltando com múltipla seleção
+        )
+        self.ranking_list.InsertColumn(0, "Posição")
+        self.ranking_list.InsertColumn(1, "Música")
+        self.ranking_list.InsertColumn(2, "Estrelas")
+        self.ranking_list.InsertColumn(3, "Tags")
+        self.ranking_list.SetColumnWidth(0, 70)
+        self.ranking_list.SetColumnWidth(1, 350)
+        self.ranking_list.SetColumnWidth(2, 100)
+        self.ranking_list.SetColumnWidth(3, 200)
+        
+        right_bottom_sizer = wx.BoxSizer(wx.VERTICAL)
+        right_bottom_sizer.Add(self.ranking_list, 1, wx.EXPAND | wx.ALL, 5)
+        self.right_bottom_panel.SetSizer(right_bottom_sizer)
+        
+        # Configurar splitter direito (começando com painel de tags oculto)
+        self.right_splitter.SplitHorizontally(self.right_top_panel, self.right_bottom_panel, 80)
+        
+        # Layout do painel direito principal
+        right_sizer = wx.BoxSizer(wx.VERTICAL)
+        right_sizer.Add(self.right_splitter, 1, wx.EXPAND)
         self.right_panel.SetSizer(right_sizer)
 
         # Adicionar splitter e painel de comparação ao layout principal
@@ -206,7 +242,7 @@ class MusicApp(wx.Frame):
 
     def _setup_filter_panel(self):
         """Configura o painel de filtros para estrelas e tags."""
-        self.filter_panel = wx.Panel(self.right_panel)
+        self.filter_panel = wx.Panel(self.right_top_panel)
         
         # Layout vertical principal para filtros
         main_filter_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -218,7 +254,7 @@ class MusicApp(wx.Frame):
         basic_filter_sizer.Add(wx.StaticText(self.filter_panel, label="⭐ Estrelas:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
         
         self.stars_filter = wx.Choice(self.filter_panel, choices=[
-            "Todas", "⭐⭐⭐⭐⭐ (5)", "⭐⭐⭐⭐☆ (4)", "⭐⭐⭐☆☆ (3)", "⭐⭐☆☆☆ (2)", "⭐☆☆☆☆ (1)"
+            "Todas", "⭐⭐⭐⭐⭐", "⭐⭐⭐⭐", "⭐⭐⭐", "⭐⭐", "⭐"
         ])
         self.stars_filter.SetSelection(0)  # "Todas" por padrão
         basic_filter_sizer.Add(self.stars_filter, 0, wx.ALL, 5)
@@ -242,56 +278,62 @@ class MusicApp(wx.Frame):
         
         main_filter_sizer.Add(basic_filter_sizer, 0, wx.EXPAND)
         
-        # === LINHA 2: Painel expansível para tags ===
-        self.tags_panel = wx.Panel(self.filter_panel)
-        self.tags_panel.Hide()  # Inicialmente oculto
+        self.filter_panel.SetSizer(main_filter_sizer)
+        
+        # Bind eventos dos filtros básicos
+        self.stars_filter.Bind(wx.EVT_CHOICE, self.on_filter_changed)
+        self.clear_filters_btn.Bind(wx.EVT_BUTTON, self.on_clear_filters)
+        self.expand_tags_btn.Bind(wx.EVT_BUTTON, self.on_toggle_tags_panel)
+
+    def _setup_tags_resizable_panel(self):
+        """Configura o painel de tags redimensionável."""
+        # Criar o painel de tags dentro do painel superior
+        self.tags_resizable_panel = wx.Panel(self.right_top_panel)
         
         # Layout para o painel de tags
         tags_sizer = wx.BoxSizer(wx.VERTICAL)
         
-        # Cabeçalho do painel expandido
+        # Cabeçalho do painel de tags
         header_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        header_sizer.Add(wx.StaticText(self.tags_panel, label="🏷️ Selecionar tags (AND - música deve ter TODAS):"), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
+        header_sizer.Add(wx.StaticText(self.tags_resizable_panel, label="🏷️ Filtrar por Tags (AND - música deve ter TODAS):"), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
         
-        # Botões de controle
-        self.select_all_tags_btn = wx.Button(self.tags_panel, label="✅ Todas", size=(70, -1))
-        self.clear_all_tags_btn = wx.Button(self.tags_panel, label="❌ Nenhuma", size=(80, -1))
-        header_sizer.Add(self.select_all_tags_btn, 0, wx.ALL, 3)
+        # Botão de controle
+        self.clear_all_tags_btn = wx.Button(self.tags_resizable_panel, label="❌ Nenhuma", size=(120, -1))
         header_sizer.Add(self.clear_all_tags_btn, 0, wx.ALL, 3)
         
         # Contador de músicas filtradas
-        self.filtered_count_label = wx.StaticText(self.tags_panel, label="")
+        self.filtered_count_label = wx.StaticText(self.tags_resizable_panel, label="")
         header_sizer.Add(self.filtered_count_label, 1, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
         
         tags_sizer.Add(header_sizer, 0, wx.EXPAND)
         
-        # Painel scrollável para checkboxes das tags
-        self.tags_scroll_panel = wx.ScrolledWindow(self.tags_panel, style=wx.BORDER_SUNKEN)
+        # Painel scrollável para checkboxes das tags (agora redimensionável!)
+        self.tags_scroll_panel = wx.ScrolledWindow(self.tags_resizable_panel, style=wx.BORDER_SUNKEN)
         self.tags_scroll_panel.SetScrollRate(5, 5)
-        self.tags_scroll_panel.SetMinSize((-1, 100))
-        self.tags_scroll_panel.SetMaxSize((-1, 150))
+        # Removido SetMinSize e SetMaxSize para permitir redimensionamento livre
         
-        # Sizer para os checkboxes (será populado dinamicamente)
-        self.tags_checkboxes_sizer = wx.BoxSizer(wx.VERTICAL)
+        # Sizer para os checkboxes em colunas (será populado dinamicamente)
+        # Começar com 3 colunas, será ajustado dinamicamente baseado no número de tags
+        self.tags_checkboxes_sizer = wx.FlexGridSizer(0, 3, 5, 10)
         self.tags_scroll_panel.SetSizer(self.tags_checkboxes_sizer)
         
         tags_sizer.Add(self.tags_scroll_panel, 1, wx.EXPAND | wx.ALL, 5)
         
-        self.tags_panel.SetSizer(tags_sizer)
-        main_filter_sizer.Add(self.tags_panel, 0, wx.EXPAND)
-        
-        self.filter_panel.SetSizer(main_filter_sizer)
+        self.tags_resizable_panel.SetSizer(tags_sizer)
         
         # Inicializar variáveis
         self.tag_checkboxes = []
-        self.tags_expanded = False
+        self.tags_expanded = False  # Começar oculto
+        self._saved_tags_splitter_pos = 200  # Posição padrão do splitter
         
-        # Bind eventos dos filtros
-        self.stars_filter.Bind(wx.EVT_CHOICE, self.on_filter_changed)
-        self.clear_filters_btn.Bind(wx.EVT_BUTTON, self.on_clear_filters)
-        self.expand_tags_btn.Bind(wx.EVT_BUTTON, self.on_toggle_tags_panel)
-        self.select_all_tags_btn.Bind(wx.EVT_BUTTON, self.on_select_all_tags)
+        # Inicialmente ocultar o painel
+        self.tags_resizable_panel.Hide()
+        
+        # Bind eventos dos controles de tags
         self.clear_all_tags_btn.Bind(wx.EVT_BUTTON, self.on_clear_all_tags)
+        
+        # Bind evento do splitter para salvar posição
+        self.right_splitter.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGED, self.on_tags_splitter_move)
 
     def _setup_analysis_filter(self):
         """Configura o filtro de texto para músicas em análise."""
@@ -603,10 +645,9 @@ class MusicApp(wx.Frame):
         if stars_count is None or stars_count <= 0:
             return ""
         
-        # Usar as mesmas estrelas do filtro para consistência visual
+        # Usar apenas estrelas preenchidas para melhor alinhamento
         filled_stars = "⭐" * stars_count
-        empty_stars = "☆" * (5 - stars_count)
-        return filled_stars + empty_stars
+        return filled_stars
 
     def update_lists(self):
         """Atualiza todas as listas - método de compatibilidade."""
@@ -736,20 +777,36 @@ class MusicApp(wx.Frame):
                     layout_settings
                 )
                 
-                # Aplicar estado do painel de tags
-                if layout_settings.get('tags_panel_expanded', False):
-                    wx.CallAfter(self._restore_tags_panel_state)
+                # Salvar posição do splitter de tags para uso posterior
+                self._saved_tags_splitter_pos = layout_settings.get('tags_splitter_position', 200)
+                
+                # Aplicar estado do painel de tags - SEMPRE começar colapsado na inicialização
+                # Ignorar configuração salva e sempre começar colapsado
+                self.tags_expanded = False
+                self.expand_tags_btn.SetLabel("🔽 Filtrar por Tags")
         except Exception as e:
             print(f"Erro ao aplicar configurações de layout: {e}")
     
     def _restore_tags_panel_state(self):
         """Restaura o estado expandido do painel de tags."""
         try:
-            # Simular clique no botão para expandir
-            if not self.tags_panel.IsShown():
-                self.on_toggle_tags_panel(None)
+            # Expandir painel de tags com posição salva
+            self.tags_expanded = False  # Começar como falso para que o toggle funcione
+            self.tags_resizable_panel.Show()
+            self.tags_expanded = True
+            self.expand_tags_btn.SetLabel("🔼 Ocultar Tags")
+            self.right_splitter.SetSashPosition(self._saved_tags_splitter_pos)
+            self.populate_tags_checkboxes()
+            self.update_filter_summary()
+            self.right_top_panel.Layout()
         except Exception as e:
             print(f"Erro ao restaurar estado do painel de tags: {e}")
+
+    def _ensure_button_state(self):
+        """Garante que o botão tenha o estado correto após todas as inicializações."""
+        # Sempre forçar colapsado na inicialização
+        self.tags_expanded = False
+        self.expand_tags_btn.SetLabel("🔽 Filtrar por Tags")
 
     def start_auto_comparison(self):
         """Inicia comparação automática - chamado na inicialização."""
@@ -1745,14 +1802,16 @@ class MusicApp(wx.Frame):
             ]
             
             splitter_pos = self.main_splitter.GetSashPosition()
-            tags_expanded = self.tags_panel.IsShown()
+            tags_splitter_pos = self.right_splitter.GetSashPosition()
+            tags_expanded = not self.right_splitter.IsSplit() or self.right_bottom_panel.IsShown()
             
             # Salvar todas as configurações de uma vez
             self.app_settings.save_all_settings(
                 self, 
                 column_widths, 
                 splitter_pos, 
-                tags_expanded
+                tags_expanded,
+                tags_splitter_pos
             )
         except Exception as e:
             print(f"Erro ao salvar configurações: {e}")
@@ -1780,6 +1839,16 @@ class MusicApp(wx.Frame):
         finally:
             event.Skip()
     
+    def on_tags_splitter_move(self, event):
+        """Salva posição do splitter de tags quando movido."""
+        try:
+            # Usar CallAfter para garantir que a posição já foi atualizada
+            wx.CallAfter(self._save_layout_settings)
+        except Exception as e:
+            print(f"Erro ao salvar posição do splitter de tags: {e}")
+        finally:
+            event.Skip()
+    
     def _save_layout_settings(self):
         """Salva apenas as configurações de layout."""
         try:
@@ -1791,12 +1860,14 @@ class MusicApp(wx.Frame):
             ]
             
             splitter_pos = self.main_splitter.GetSashPosition()
-            tags_expanded = self.tags_panel.IsShown()
+            tags_splitter_pos = self.right_splitter.GetSashPosition()
+            tags_expanded = self.tags_expanded  # Usar o estado real da variável
             
             self.app_settings.save_layout_settings(
                 column_widths, 
                 splitter_pos, 
-                tags_expanded
+                tags_expanded,
+                tags_splitter_pos  # Nova configuração
             )
         except Exception as e:
             print(f"Erro ao salvar configurações de layout: {e}")
@@ -1822,22 +1893,38 @@ class MusicApp(wx.Frame):
         self.update_ranking_list()
 
     def populate_tags_checkboxes(self):
-        """Popula os checkboxes de tags."""
+        """Popula os checkboxes de tags em layout de colunas otimizado."""
         try:
             # Limpar checkboxes existentes
             for checkbox in self.tag_checkboxes:
                 checkbox.Destroy()
             self.tag_checkboxes.clear()
             
+            # Recriar o sizer para evitar problemas com growable columns
+            self.tags_checkboxes_sizer.Clear()
+            
             # Obter todas as tags do banco
             all_tags = self.controller.music_model.get_all_tags()
+            num_tags = len(all_tags)
+            
+            # Ajustar número de colunas baseado na quantidade de tags
+            if num_tags <= 6:
+                cols = 2  # Poucas tags: 2 colunas
+            elif num_tags <= 15:
+                cols = 3  # Quantidade média: 3 colunas  
+            else:
+                cols = 4  # Muitas tags: 4 colunas
+            
+            # Recriar sizer com número de colunas otimizado
+            self.tags_checkboxes_sizer.SetCols(cols)
             
             # Criar checkbox para cada tag
             for tag in sorted(all_tags):
                 checkbox = wx.CheckBox(self.tags_scroll_panel, label=tag)
                 checkbox.Bind(wx.EVT_CHECKBOX, self.on_tag_checkbox_changed)
                 self.tag_checkboxes.append(checkbox)
-                self.tags_checkboxes_sizer.Add(checkbox, 0, wx.ALL, 3)
+                # Adicionar com alinhamento à esquerda e menos padding
+                self.tags_checkboxes_sizer.Add(checkbox, 0, wx.ALIGN_LEFT | wx.ALL, 2)
             
             # Atualizar layout
             self.tags_scroll_panel.FitInside()
@@ -1847,40 +1934,42 @@ class MusicApp(wx.Frame):
             print(f"Erro ao carregar checkboxes de tags: {e}")
 
     def on_toggle_tags_panel(self, event):
-        """Expande/recolhe o painel de tags."""
-        self.tags_expanded = not self.tags_expanded
-        
+        """Mostra/oculta o painel de tags."""
         if self.tags_expanded:
-            # Expandir
-            self.tags_panel.Show()
-            self.expand_tags_btn.SetLabel("🔼 Ocultar Tags")
-            self.populate_tags_checkboxes()
-            self.update_filter_summary()
-        else:
-            # Recolher
-            self.tags_panel.Hide()
+            # Ocultar painel de tags
+            # Salvar a posição atual antes de ocultar
+            self._saved_tags_splitter_pos = self.right_splitter.GetSashPosition()
+            
+            self.tags_expanded = False
+            self.tags_resizable_panel.Hide()
             self.expand_tags_btn.SetLabel("🔽 Filtrar por Tags")
             
             # Limpar seleções de tags
             for checkbox in self.tag_checkboxes:
                 checkbox.SetValue(False)
             self.update_filter_summary()
+            
+            # Reduzir o painel superior para dar mais espaço à lista
+            self.right_splitter.SetSashPosition(80)  # Tamanho mínimo só para filtros
+        else:
+            # Mostrar painel de tags
+            self.tags_expanded = True
+            self.tags_resizable_panel.Show()
+            self.expand_tags_btn.SetLabel("🔼 Ocultar Tags")
+            self.populate_tags_checkboxes()
+            self.update_filter_summary()
+            
+            # Restaurar tamanho salvo do painel superior
+            saved_pos = getattr(self, '_saved_tags_splitter_pos', 200)
+            self.right_splitter.SetSashPosition(saved_pos)
         
-        # Atualizar layout e aplicar filtros
-        self.filter_panel.Layout()
-        self.filter_panel.GetParent().Layout()
+        # Atualizar layout
+        self.right_top_panel.Layout()
         self.on_filter_changed(event)
         
         # Salvar estado do painel de tags
         wx.CallAfter(self._save_layout_settings)
 
-    def on_select_all_tags(self, event):
-        """Seleciona todas as tags nos checkboxes."""
-        for checkbox in self.tag_checkboxes:
-            checkbox.SetValue(True)
-        self.update_filtered_count()
-        self.update_filter_summary()
-        self.on_filter_changed(event)
 
     def on_clear_all_tags(self, event):
         """Limpa todas as seleções de tags nos checkboxes."""

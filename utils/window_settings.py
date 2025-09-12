@@ -50,7 +50,7 @@ class AppSettings:
         except Exception as e:
             print(f"Erro ao salvar configurações da janela: {e}")
     
-    def save_layout_settings(self, column_widths: List[int], splitter_pos: int, tags_expanded: bool) -> None:
+    def save_layout_settings(self, column_widths: List[int], splitter_pos: int, tags_expanded: bool, tags_splitter_pos: int = -150) -> None:
         """
         Salva configurações de layout.
         
@@ -58,6 +58,7 @@ class AppSettings:
             column_widths: Lista com larguras das colunas [posição, música, estrelas, tags]
             splitter_pos: Posição do divisor entre árvore e ranking
             tags_expanded: Se o painel de tags está expandido
+            tags_splitter_pos: Posição do divisor do painel de tags
         """
         try:
             # Carregar configurações existentes ou criar novas
@@ -67,7 +68,8 @@ class AppSettings:
             existing_settings['layout'] = {
                 'column_widths': column_widths,
                 'splitter_position': splitter_pos,
-                'tags_panel_expanded': tags_expanded
+                'tags_panel_expanded': tags_expanded,
+                'tags_splitter_position': tags_splitter_pos
             }
             
             # Salvar no arquivo JSON
@@ -77,7 +79,7 @@ class AppSettings:
         except Exception as e:
             print(f"Erro ao salvar configurações de layout: {e}")
     
-    def save_all_settings(self, frame, column_widths: List[int], splitter_pos: int, tags_expanded: bool) -> None:
+    def save_all_settings(self, frame, column_widths: List[int], splitter_pos: int, tags_expanded: bool, tags_splitter_pos: int = -150) -> None:
         """
         Salva todas as configurações de uma vez.
         
@@ -86,6 +88,7 @@ class AppSettings:
             column_widths: Lista com larguras das colunas
             splitter_pos: Posição do divisor
             tags_expanded: Se o painel de tags está expandido
+            tags_splitter_pos: Posição do divisor do painel de tags
         """
         try:
             # Obter dados da janela
@@ -102,7 +105,8 @@ class AppSettings:
                 'layout': {
                     'column_widths': column_widths,
                     'splitter_position': splitter_pos,
-                    'tags_panel_expanded': tags_expanded
+                    'tags_panel_expanded': tags_expanded,
+                    'tags_splitter_position': tags_splitter_pos
                 }
             }
             
