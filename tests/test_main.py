@@ -8,12 +8,41 @@ from unittest.mock import patch, MagicMock
 def test_main_imports():
     """Test that all required modules are properly imported."""
     # This test ensures that main.py can import all its dependencies
-    try:
+    import sqlite3
+    import wx
+    from controllers.music_controller import MusicController
+    from views.music_app import MusicApp
+    from utils.database_initializer import DatabaseInitializer
+    
+    # Test that all imports are successful
+    assert sqlite3 is not None
+    assert wx is not None
+    assert MusicController is not None
+    assert MusicApp is not None
+    assert DatabaseInitializer is not None
+
+
+def test_main_database_path():
+    """Test the database path used in main."""
+    expected_db_path = "data/music_ranking.db"
+    
+    # Test that main.py uses the correct database path by reading the file
+    with open('main.py', 'r') as f:
+        content = f.read()
+        assert expected_db_path in content
+    
+    # Also test with mocked execution to verify the path is used correctly
+    with patch('sqlite3.connect') as mock_connect, \
+         patch('wx.App'), \
+         patch('controllers.music_controller.MusicController'), \
+         patch('views.music_app.MusicApp'), \
+         patch('utils.database_initializer.DatabaseInitializer'):
+        
+        # Import main module without executing the if __name__ == '__main__' block
         import main
-        # If we get here without exception, imports are working
-        assert True
-    except ImportError as e:
-        pytest.fail(f"Import error in main.py: {e}")
+        
+        # The module should be imported successfully without calling sqlite3.connect
+        # since we're not executing the main block
 
 
 def test_main_isolated_import():
@@ -94,7 +123,11 @@ def test_main_execution_simulation():
         db_initializer.create_tables()
         controller = mock_controller_class(conn)
         main_frame = mock_app_class_view(controller)
+        # Mock Show() instead of calling it
+        main_frame.Show = MagicMock()
         main_frame.Show()
+        # Mock MainLoop() to avoid blocking
+        app.MainLoop = MagicMock()
         app.MainLoop()
         
         # Verify the calls were made in sequence

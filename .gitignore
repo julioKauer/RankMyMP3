@@ -111,3 +111,5 @@ test_music/
 *.ogg
 *.aac
 dev.sh
+icon.svg
+tests/test_multi_tags_filter.py

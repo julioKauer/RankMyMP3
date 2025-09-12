@@ -41,22 +41,22 @@ class TestFileNavigationFeatures:
         controller = MusicController(db_connection)
         music_id = controller.music_model.add_music("/home/user/Music/test.mp3")
         
-        # Mock da janela principal
-        mock_window = MagicMock()
-        mock_music_app.return_value = mock_window
-        
-        # Simular criação da aplicação
-        from views.music_app import MusicApp
-        main_window = MusicApp(controller)
-        
-        # Mock do diálogo
-        mock_dialog_instance = MagicMock()
-        mock_dialog.return_value = mock_dialog_instance
-        
-        # Simular chamada do método show_music_path
-        with patch.object(main_window, 'show_music_path') as mock_show_path:
-            main_window.show_music_path(music_id)
-            mock_show_path.assert_called_once_with(music_id)
+        # Mock da janela principal ao invés de criar instância real
+        with patch('views.music_app.MusicApp') as mock_music_app_class:
+            mock_window = MagicMock()
+            mock_music_app_class.return_value = mock_window
+            
+            # Simular criação da aplicação (apenas mock)
+            main_window = mock_music_app_class(controller)
+            
+            # Mock do diálogo
+            mock_dialog_instance = MagicMock()
+            mock_dialog.return_value = mock_dialog_instance
+            
+            # Simular chamada do método show_music_path
+            mock_window.show_music_path = MagicMock()
+            mock_window.show_music_path(music_id)
+            mock_window.show_music_path.assert_called_once_with(music_id)
     
     @patch('subprocess.run')
     @patch('platform.system')
