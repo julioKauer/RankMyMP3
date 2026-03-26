@@ -403,11 +403,14 @@ class MusicApp(wx.Frame):
         buttons_panel_a = wx.Panel(self.song_a_panel)
         song_a_buttons = wx.BoxSizer(wx.HORIZONTAL)  # Horizontal para compactar
         
+        self.play_a_button = wx.Button(buttons_panel_a, label="▶️ Tocar")
+        self.play_a_button.SetMinSize((80, 30))
         self.song_a_button = wx.Button(buttons_panel_a, label="Prefiro")
         self.song_a_button.SetMinSize((80, 30))  # Botões menores
         self.skip_a_button = wx.Button(buttons_panel_a, label="Ignorar")
         self.skip_a_button.SetMinSize((80, 30))
         
+        song_a_buttons.Add(self.play_a_button, 0, wx.ALL, 2)
         song_a_buttons.Add(self.song_a_button, 0, wx.ALL, 2)
         song_a_buttons.Add(self.skip_a_button, 0, wx.ALL, 2)
         buttons_panel_a.SetSizer(song_a_buttons)
@@ -448,11 +451,14 @@ class MusicApp(wx.Frame):
         buttons_panel_b = wx.Panel(self.song_b_panel)
         song_b_buttons = wx.BoxSizer(wx.HORIZONTAL)  # Horizontal para compactar
         
+        self.play_b_button = wx.Button(buttons_panel_b, label="▶️ Tocar")
+        self.play_b_button.SetMinSize((80, 30))
         self.song_b_button = wx.Button(buttons_panel_b, label="Prefiro")
         self.song_b_button.SetMinSize((80, 30))  # Botões menores
         self.skip_b_button = wx.Button(buttons_panel_b, label="Ignorar")
         self.skip_b_button.SetMinSize((80, 30))
         
+        song_b_buttons.Add(self.play_b_button, 0, wx.ALL, 2)
         song_b_buttons.Add(self.song_b_button, 0, wx.ALL, 2)
         song_b_buttons.Add(self.skip_b_button, 0, wx.ALL, 2)
         buttons_panel_b.SetSizer(song_b_buttons)
@@ -471,6 +477,8 @@ class MusicApp(wx.Frame):
         self.comparison_panel.SetSizer(comparison_sizer)
 
         # Bind eventos dos botões
+        self.play_a_button.Bind(wx.EVT_BUTTON, self.on_play_current_a)
+        self.play_b_button.Bind(wx.EVT_BUTTON, self.on_play_current_b)
         self.song_a_button.Bind(wx.EVT_BUTTON, lambda evt: self.on_comparison_choice(0))
         self.song_b_button.Bind(wx.EVT_BUTTON, lambda evt: self.on_comparison_choice(1))
         self.skip_a_button.Bind(wx.EVT_BUTTON, lambda evt: self.on_skip_music(0))
@@ -819,6 +827,8 @@ class MusicApp(wx.Frame):
             self.comparison_title.SetLabel("🎵 Adicione músicas para começar a classificar")
             self.song_a_name.SetLabel("")
             self.song_b_name.SetLabel("")
+            self.play_a_button.Enable(False)
+            self.play_b_button.Enable(False)
             self.song_a_button.Enable(False)
             self.song_b_button.Enable(False)
             self.skip_a_button.Enable(False)
@@ -1166,6 +1176,8 @@ class MusicApp(wx.Frame):
                 self.song_a_name.SetLabel("")
                 self.song_b_name.SetLabel("")
                 # Desabilitar botões
+                self.play_a_button.Enable(False)
+                self.play_b_button.Enable(False)
                 self.song_a_button.Enable(False)
                 self.song_b_button.Enable(False)
                 self.skip_a_button.Enable(False)
@@ -1195,7 +1207,12 @@ class MusicApp(wx.Frame):
             self.song_a_name.SetLabel(music_a_name)
             self.song_b_name.SetLabel(music_b_name)
             
-            # Habilitar botões de preferência
+            self.current_song_a_path = music_a['path']
+            self.current_song_b_path = music_b['path']
+            
+            # Habilitar botões de preferência e tocar
+            self.play_a_button.Enable(True)
+            self.play_b_button.Enable(True)
             self.song_a_button.Enable(True)
             self.song_b_button.Enable(True)
             
@@ -2183,6 +2200,14 @@ class MusicApp(wx.Frame):
                 "Player não disponível",
                 wx.OK | wx.ICON_WARNING
             )
+
+    def on_play_current_a(self, event=None):
+        if hasattr(self, 'current_song_a_path') and self.current_song_a_path:
+            self.on_play_music(self.current_song_a_path)
+
+    def on_play_current_b(self, event=None):
+        if hasattr(self, 'current_song_b_path') and self.current_song_b_path:
+            self.on_play_music(self.current_song_b_path)
 
     def on_move_music_file(self, music_id):
         """Move uma música para outra pasta e atualiza o caminho no banco."""
